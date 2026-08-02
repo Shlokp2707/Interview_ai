@@ -1045,15 +1045,15 @@ async function startProctoring() {
       console.warn("Could not setup audio context:", ae);
     }
 
-    // Proctor check-in loop every 2 seconds (rapid lightweight checks)
-    proctorInterval = setInterval(runProctoringCheck, 2000);
-    
     // Show activation warning pop-up
     showProctorWarning("Security Proctoring Activated: Camera & microphone are monitored.");
   } catch (err) {
     console.error("Camera access error:", err);
     showProctorWarning("Camera and Microphone are required to maintain interview integrity.");
   }
+
+  // Proctor check-in loop every 2 seconds (runs regardless of media permission success, so server receives telemetry)
+  proctorInterval = setInterval(runProctoringCheck, 2000);
 }
 
 function monitorAudioVolume() {
