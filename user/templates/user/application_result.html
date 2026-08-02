@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Application Result — HireAI{% endblock %}
+{% block content %}
+<div class="container" style="max-width:640px;">
+
+  {% if application.candidate_image %}
+  <div style="display:flex; justify-content:center; margin-bottom:1.5rem; margin-top:2rem;">
+    <img src="{{ application.candidate_image.url }}" alt="{{ application.candidate_name }}" style="width:100px; height:100px; border-radius:50%; object-fit:cover; border:3px solid var(--accent); box-shadow:0 0 20px rgba(99, 102, 241, 0.3);"/>
+  </div>
+  {% endif %}
+
+  {% if application.status == "ats_failed" %}
+  <div style="text-align:center; padding:3rem 0 1rem;">
+    <div style="font-size:3.5rem;">😔</div>
+    <h1 style="margin-top:1rem;">Not Shortlisted</h1>
+    <p style="color:var(--muted); margin-top:.5rem;">Your application for <strong>{{ application.job.title }}</strong> at {{ application.job.company }} was not shortlisted.</p>
+  </div>
+
+  <div class="card" style="text-align:center;">
+    <div class="stat-box">
+      <div class="stat-val" style="color:var(--danger);">{{ application.ats_score|floatformat:1 }}%</div>
+      <div class="stat-label">ATS Score (Required: {{ application.job.ats_threshold }}%)</div>
+    </div>
+    {% if application.ats_feedback %}
+    <hr/>
+    <div style="text-align:left; font-size:.85rem; color:var(--muted); margin-bottom:.5rem; font-weight:600;">Feedback</div>
+    <div style="text-align:left; font-size:.9rem; line-height:1.6; color:var(--text);">{{ application.ats_feedback }}</div>
+    {% endif %}
+    <p style="color:var(--muted); font-size:.87rem; margin-top:.75rem;">Keep improving your skills and try again!</p>
+  </div>
+
+  {% elif application.status == "interview_scheduled" or application.status == "interview_done" or application.status == "hired" or application.status == "rejected" %}
+  <div style="text-align:center; padding:3rem 0 1rem;">
+    <div style="font-size:3.5rem;">🎉</div>
+    <h1 style="margin-top:1rem;">You're Shortlisted!</h1>
+    <p style="color:var(--muted); margin-top:.5rem;">Congratulations on passing the ATS screen for <strong>{{ application.job.title }}</strong> at {{ application.job.company }}.</p>
+  </div>
+
+  <div class="card">
+    <div class="grid-2">
+      <div class="stat-box">
+        <div class="stat-val" style="color:var(--accent2);">{{ application.ats_score|floatformat:1 }}%</div>
+        <div class="stat-label">ATS Score</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" style="color:var(--accent);">✓</div>
+        <div class="stat-label">Interview Ready</div>
+      </div>
+    </div>
+
+    {% if application.ats_breakdown %}
+    <hr/>
+    <div style="font-size:.85rem; color:var(--muted); margin-bottom:.75rem; font-weight:600;">Score Breakdown</div>
+    {% with b=application.ats_breakdown %}
+      {% for key, val in b.items %}
+      {% if key != "has_strong_project" %}
+      <div style="margin-bottom:.6rem;">
+        <div style="display:flex; justify-content:space-between; font-size:.82rem;">
+          <span>{{ key|title|cut:"_" }}</span>
+          <span>{{ val|floatformat:0 }}/100</span>
+        </div>
+        <div class="score-bar-wrap">
+          <div class="score-bar" style="width:{{ val }}%;"></div>
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    {% endwith %}
+    {% endif %}
+
+    {% if application.ats_feedback %}
+    <hr/>
+    <div style="font-size:.85rem; color:var(--muted); margin-bottom:.5rem; font-weight:600;">Feedback</div>
+    <div style="font-size:.9rem; line-height:1.6; color:var(--text);">{{ application.ats_feedback }}</div>
+    {% endif %}
+
+    <hr/>
+    {% if application.status == "interview_scheduled" %}
+    <div class="alert alert-info" style="margin-bottom:1rem;">
+      📧 An interview link has been sent to <strong>{{ application.candidate_email }}</strong>. You can also start directly:
+    </div>
+    <a href="{% url 'interview' application.id %}" class="btn btn-success" style="width:100%; justify-content:center; padding:.75rem;">
+      Start AI Interview →
+    </a>
+    {% else %}
+    <div class="alert alert-success">Interview has been completed. Check your email for results.</div>
+    {% endif %}
+  </div>
+
+  {% endif %}
+
+  <div style="text-align:center; margin-top:1.5rem;">
+    <a href="{% url 'home' %}" class="btn btn-outline">← Back to Jobs</a>
+  </div>
+</div>
+{% block extra_js %}
+{% endblock %}
+{% endblock %}

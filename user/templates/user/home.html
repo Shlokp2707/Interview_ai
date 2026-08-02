@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}HireAI — Open Positions{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page-header" style="padding: 3rem 0 2rem;">
+    <h1>Find Your Next Role</h1>
+    <p>Apply with your resume. Our AI screens, conducts interviews, and evaluates in real time.</p>
+  </div>
+
+  {% if not user.is_authenticated %}
+    <div class="card" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(16, 185, 129, 0.05)); border-color: rgba(99, 102, 241, 0.25); text-align: center; padding: 2rem;">
+      <h3 style="font-family: 'Outfit', sans-serif; margin-bottom: 0.5rem; font-size: 1.3rem;">Get Started with HireAI</h3>
+      <p style="color: var(--muted); font-size: 0.92rem; margin-bottom: 1.25rem;">Create a candidate or recruiter account to apply for jobs or manage open positions.</p>
+      <div style="display: flex; gap: 1rem; justify-content: center;">
+        <a href="{% url 'register' %}" class="btn btn-primary">Create Account</a>
+        <a href="{% url 'login' %}" class="btn btn-outline">Sign In</a>
+      </div>
+    </div>
+  {% else %}
+    <div class="card" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(99, 102, 241, 0.05)); border-color: rgba(16, 185, 129, 0.2); padding: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
+      <div>
+        <h3 style="font-family: 'Outfit', sans-serif; margin: 0; font-size: 1.2rem;">Welcome back, {{ user.username }}!</h3>
+        <p style="color: var(--muted); margin: 0.25rem 0 0; font-size: 0.88rem;">Track your applications and check interview statuses in your profile.</p>
+      </div>
+      <a href="{% url 'profile' %}" class="btn btn-primary btn-sm">View My Dashboard</a>
+    </div>
+  {% endif %}
+
+  {% if not jobs %}
+    <div class="card" style="text-align:center; padding:3rem;">
+      <p style="color:var(--muted); font-size:1rem;">No open positions right now.</p>
+      {% if user.is_staff %}
+        <a href="{% url 'create_job' %}" class="btn btn-primary" style="margin-top:1rem;">Post a Job (HR)</a>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% for job in jobs %}
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:.5rem;">
+      <div>
+        <div class="card-title">{{ job.title }}</div>
+        <div class="card-meta">{{ job.company }} &nbsp;·&nbsp; {{ job.experience }} experience</div>
+        <div class="tags">
+          {% for skill in job.required_skills %}
+            <span class="tag">{{ skill }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:.5rem; align-items:flex-end;">
+        <a href="{% url 'apply' job.id %}" class="btn btn-primary">Apply Now →</a>
+        <span style="font-size:.78rem; color:var(--muted);">{{ job.applications.count }} application{{ job.applications.count|pluralize }}</span>
+      </div>
+    </div>
+    <hr/>
+    <p style="font-size:.87rem; color:var(--muted); line-height:1.6;">{{ job.description|truncatewords:40 }}</p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

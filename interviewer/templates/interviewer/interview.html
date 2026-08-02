@@ -1,0 +1,1263 @@
+{% extends "base.html" %}
+{% block title %}AI Interview — HireAI{% endblock %}
+{% block content %}
+  <!-- Fullscreen Warning Overlay -->
+  <div id="fullscreen-warning-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(10, 11, 16, 0.98); z-index: 99999; display: none; flex-direction: column; justify-content: center; align-items: center; text-align: center; backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); font-family: 'Outfit', sans-serif;">
+    <div style="font-size: 4rem; margin-bottom: 1.5rem; animation: pulse 2s infinite;">🖥️</div>
+    <h2 style="color: var(--danger); font-size: 1.8rem; margin-bottom: 0.75rem;">Fullscreen Mode Required</h2>
+    <p style="color: var(--muted); font-size: 1rem; max-width: 500px; line-height: 1.6; margin-bottom: 2rem; padding: 0 1.5rem;">
+      To continue the interview, you must keep the window in fullscreen mode. Exiting fullscreen is logged as a security violation.
+    </p>
+    <button class="btn btn-primary" onclick="enterFullscreenAndResume()" style="padding: 0.85rem 2.5rem; font-size: 1.05rem;">
+      Resume Fullscreen &rarr;
+    </button>
+  </div>
+
+<style>
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+</style>
+<div class="container" id="interview-container" style="max-width: {% if application.is_verified and rules_accepted %}1080px{% else %}760px{% endif %}; transition: max-width 0.3s ease;">
+
+  {% if not application.is_verified %}
+  <!-- Face Verification Card -->
+  <div class="card" id="verification-card" style="padding: 2.5rem 2rem; text-align: center; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">
+    <div style="font-size: 3rem; margin-bottom: 1rem; animation: pulse 2s infinite;">🔒</div>
+    <h2 style="font-size: 1.6rem; margin-bottom: 0.75rem; font-family: 'Outfit', sans-serif;">Face Verification Security</h2>
+    <p style="color: var(--muted); font-size: 0.95rem; line-height: 1.6; max-width: 500px; margin: 0 auto 2rem;">
+      To maintain the integrity of this interview, we need to verify your identity. Please align your face in the camera preview below.
+    </p>
+
+    <!-- Camera stream container -->
+    <div style="position: relative; width: 320px; height: 240px; margin: 0 auto 1.5rem; background: #0c0d12; border: 2px solid var(--accent); border-radius: 12px; overflow: hidden; box-shadow: 0 0 20px var(--accent-glow);">
+      <video id="webcam-preview" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);"></video>
+      <canvas id="webcam-canvas" width="640" height="480" style="display: none;"></canvas>
+      <!-- Overlay guides -->
+      <div style="position: absolute; top: 10%; left: 15%; width: 70%; height: 80%; border: 2px dashed rgba(99, 102, 241, 0.4); border-radius: 50%;"></div>
+    </div>
+
+    <div id="verify-error" style="color: var(--danger); font-size: 0.9rem; margin-bottom: 1rem; display: none; padding: 0.5rem; background: rgba(239, 68, 68, 0.1); border-radius: 8px;"></div>
+    <div id="verify-status" style="color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
+      <span class="spinner" style="display:inline-block; width:12px; height:12px; border:2px solid var(--muted); border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite; margin-right:6px; vertical-align:middle;"></span>
+      Warming up AI proctoring engine...
+    </div>
+
+    <div>
+      <button class="btn btn-primary" id="btn-capture" onclick="captureAndVerify()" style="padding: 0.75rem 2rem; font-size: 1rem; opacity: 0.5; cursor: not-allowed;" disabled>Verify Identity</button>
+    </div>
+  </div>
+  {% else %}
+  
+  {% if not rules_accepted %}
+  <!-- Rules & Guidelines Screen -->
+  <div class="card" id="rules-card" style="padding: 2.5rem 2rem; max-width: 700px; margin: 0 auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">
+    <div style="font-size: 3rem; margin-bottom: 1rem; text-align: center;">📝</div>
+    <h2 style="font-size: 1.8rem; margin-bottom: 0.75rem; text-align: center; font-family: 'Outfit', sans-serif;">Interview Rules & Security Guidelines</h2>
+    <p style="color: var(--muted); font-size: 0.95rem; line-height: 1.6; text-align: center; max-width: 500px; margin: 0 auto 2rem;">
+      Please read the following rules and security warning criteria carefully. These rules are enforced automatically by the AI proctoring engine.
+    </p>
+
+    <!-- Rules Accordion/Dashboard -->
+    <div style="display: flex; flex-direction: column; gap: 1rem; text-align: left; margin-bottom: 2rem;">
+      
+      <!-- General Rules -->
+      <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem;">
+        <h3 style="font-size: 1.05rem; display: flex; align-items: center; gap: 8px; margin-bottom: 0.75rem; color: var(--text);">
+          📋 General Requirements
+        </h3>
+        <ul style="margin: 0; padding-left: 1.2rem; font-size: 0.9rem; color: var(--muted); display: flex; flex-direction: column; gap: 6px; line-height: 1.5;">
+          <li>You must sit in a quiet, well-lit private space.</li>
+          <li>Do not use headphones, earbuds, or other external communication devices.</li>
+          <li>Keep your camera and microphone enabled throughout the session.</li>
+          <li>Ensure you do not switch browser tabs, minimize the window, or open other applications.</li>
+        </ul>
+      </div>
+
+      <!-- Warning Criteria -->
+      <div style="background: rgba(245, 158, 11, 0.03); border: 1px solid rgba(245, 158, 11, 0.15); border-radius: 12px; padding: 1.25rem;">
+        <h3 style="font-size: 1.05rem; display: flex; align-items: center; gap: 8px; margin-bottom: 0.75rem; color: var(--warn);">
+          ⚠️ AI Proctoring Warning Criteria
+        </h3>
+        <p style="font-size: 0.88rem; color: var(--muted); margin-bottom: 0.75rem; line-height: 1.4;">
+          The system monitors your camera feed and ambient audio. The following events will trigger immediate warnings:
+        </p>
+        <ul style="margin: 0; padding-left: 1.2rem; font-size: 0.9rem; color: var(--muted); display: flex; flex-direction: column; gap: 6px; line-height: 1.5;">
+          <li><strong style="color: var(--text);">Looking Away:</strong> Looking away from the screen for more than <span style="color: var(--warn); font-weight: 600;">4 seconds</span>.</li>
+          <li><strong style="color: var(--text);">Out of Camera Frame:</strong> If your face is not detected for more than <span style="color: var(--warn); font-weight: 600;">5 seconds</span>.</li>
+          <li><strong style="color: var(--text);">Multiple Faces:</strong> If another person's face appears in the frame (strictly <span style="color: var(--warn); font-weight: 600;">no two persons</span> on screen).</li>
+          <li><strong style="color: var(--text);">Photo/Spoofing Check:</strong> A real candidate must be present. Holding a static photograph or phone screen to the camera will fail liveness checks.</li>
+          <li><strong style="color: var(--text);">High Noise Activity:</strong> High audio levels or external voices while not answering questions will trigger alerts.</li>
+        </ul>
+      </div>
+
+      <!-- Session Termination -->
+      <div style="background: rgba(239, 68, 68, 0.03); border: 1px solid rgba(239, 68, 68, 0.15); border-radius: 12px; padding: 1.25rem;">
+        <h3 style="font-size: 1.05rem; display: flex; align-items: center; gap: 8px; margin-bottom: 0.75rem; color: var(--danger);">
+          🚫 Disqualification & Termination Criteria
+        </h3>
+        <ul style="margin: 0; padding-left: 1.2rem; font-size: 0.9rem; color: var(--muted); display: flex; flex-direction: column; gap: 6px; line-height: 1.5;">
+          <li>Each triggered alert increments your warning count.</li>
+          <li>If you accumulate <strong style="color: var(--danger);">5 security warnings</strong>, the session is terminated instantly and your application status is marked as rejected.</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <!-- Acceptance & Button -->
+    <div style="margin-top: 2rem; display: flex; flex-direction: column; align-items: center; gap: 1.25rem;">
+      <label style="display: flex; align-items: flex-start; gap: 10px; max-width: 550px; cursor: pointer; color: var(--text); font-size: 0.9rem; text-align: left;">
+        <input type="checkbox" id="rules-agree" style="margin-top: 3px; width: 18px; height: 18px; cursor: pointer;">
+        <span>I have read and understood the rules. I agree to enable my webcam/mic and understand that 5 warnings will terminate the session.</span>
+      </label>
+      
+      <div id="rules-error" style="color: var(--danger); font-size: 0.88rem; display: none;">Please accept the rules before starting the interview.</div>
+      
+      <button class="btn btn-primary" id="btn-start-interview" onclick="acceptRulesAndStart()" style="padding: 0.85rem 2.5rem; font-size: 1.05rem; width: 100%; max-width: 300px;">
+        Start Interview 🚀
+      </button>
+    </div>
+  </div>
+  {% else %}
+  
+  <!-- Main Grid Layout -->
+  <div class="interview-grid" style="display: grid; grid-template-columns: 1fr 280px; gap: 1.5rem; width: 100%; box-sizing: border-box; align-items: start; margin-top: 0.5rem;">
+    
+    <!-- Left Column: Main Interview Area -->
+    <div style="display: flex; flex-direction: column; gap: 0.75rem; width: 100%;">
+       
+       <!-- Header -->
+       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:.5rem;">
+         <div>
+           <h1 style="font-size:1.4rem; margin:0;">AI Interview</h1>
+           <p style="color:var(--muted); font-size:.82rem; margin:0.15rem 0 0 0;">{{ application.job.title }} — {{ application.job.company }}</p>
+         </div>
+         <div style="font-size:.82rem; color:var(--muted);">
+           Question <span id="q-num">{{ state.question_count }}</span> of {{ state.max_questions }}
+         </div>
+       </div>
+
+       <!-- Progress bar -->
+       <div class="score-bar-wrap" style="margin-bottom:0.25rem; height: 5px; border-radius: 2px; background: rgba(255,255,255,0.05); overflow: hidden;">
+         <div class="score-bar" id="progress-bar"
+              style="width:{% widthratio state.question_count state.max_questions 100 %}%;
+                     background:var(--accent2); height: 100%;"></div>
+       </div>
+
+       <!-- Interview box -->
+       <div id="interview-box" style="display: flex; flex-direction: column; gap: 0.75rem;">
+    {% if state.phase == "finished" %}
+      <div id="report-section">{% include "interviewer/_report.html" with state=state %}</div>
+    {% else %}
+
+      <!-- Question card -->
+      <div class="card" id="question-card">
+        <div style="display:flex; align-items:center; gap:.6rem; margin-bottom:1rem;">
+          <span id="phase-badge"
+                class="badge {% if state.phase == 'followup' %}badge-yellow{% else %}badge-purple{% endif %}">
+            {% if state.phase == "followup" %}
+              🔄 Follow-up [{{ state.followup_count }}/2]
+            {% else %}
+              🎙️ Question {{ state.question_count }}
+            {% endif %}
+          </span>
+        </div>
+        <p id="question-text" style="font-size:1.05rem; line-height:1.7; color:var(--text);">
+          {{ state.question }}
+        </p>
+      </div>
+
+      <!-- Answer card -->
+      <div class="card" id="answer-card">
+        <div style="display:flex; flex-direction:column; align-items:center; gap:1rem; padding:.5rem 0;">
+
+          <!-- TTS toggle -->
+          <div style="width:100%; display:flex; justify-content:flex-end;">
+            <label style="display:flex; align-items:center; gap:.5rem; font-size:.82rem;
+                          color:var(--muted); cursor:pointer;">
+              <input type="checkbox" id="tts-toggle" checked
+                     onchange="toggleTTS(this.checked)"
+                     style="width:16px; height:16px; cursor:pointer;">
+              🔊 Read questions aloud
+            </label>
+          </div>
+
+          <!-- WebSocket status dot -->
+          <div style="width:100%; display:flex; align-items:center; gap:.5rem;">
+            <span id="ws-dot" style="display:inline-block; width:8px; height:8px;
+                  border-radius:50%; background:#888;"></span>
+            <span id="ws-label" style="font-size:.78rem; color:var(--muted);">Connecting…</span>
+          </div>
+
+          <!-- Mic button -->
+          <button id="mic-btn" onclick="toggleRecording()" disabled
+                  style="width:80px; height:80px; border-radius:50%; border:none;
+                         background:#888; color:#fff; font-size:2rem;
+                         cursor:not-allowed; transition:transform .15s, background .2s;
+                         opacity:.6;">
+            🎙️
+          </button>
+          <p id="mic-label" style="color:var(--muted); font-size:.85rem; margin:0; text-align:center;">
+            Waiting for connection…
+          </p>
+
+          <!-- Live transcript box -->
+          <div id="answer-display"
+               style="width:100%; min-height:80px; padding:.75rem 1rem;
+                      background:#1e1e2e; color:#f0f0ff;
+                      border:1px solid #3d3d5c; border-radius:8px;
+                      font-size:.95rem; line-height:1.7;
+                      white-space:pre-wrap; word-break:break-word;
+                      box-sizing:border-box;">
+          </div>
+
+          <!-- Action buttons -->
+          <div style="display:flex; gap:.75rem; flex-wrap:wrap; justify-content:center;">
+            <button class="btn btn-primary" id="submit-btn"
+                    onclick="submitVoiceAnswer()" disabled>Submit Answer</button>
+            <button class="btn btn-outline" id="clear-btn"
+                    onclick="clearTranscript()">Clear</button>
+            <button class="btn btn-outline" id="skip-btn"
+                    onclick="skipQuestion()">I don't know</button>
+          </div>
+
+          <!-- Vocab feedback bar -->
+          <div id="vocab-feedback"
+               style="display:none; width:100%; padding:.6rem 1rem; border-radius:8px;
+                      background:rgba(108,99,255,.07); font-size:.8rem;">
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Thinking indicator -->
+      <div id="thinking" style="display:none; text-align:center; padding:2rem;">
+        <div style="font-size:2rem; animation:pulse 1.2s infinite;">🤔</div>
+        <p style="color:var(--muted); margin-top:.75rem;" id="thinking-text">
+          Evaluating your answer…
+        </p>
+      </div>
+
+      <!-- Report section (filled by JS after interview ends) -->
+      <div id="report-section" style="display:none;"></div>
+
+    {% endif %}
+  </div> <!-- ends interview-box -->
+  </div> <!-- ends Left Column -->
+
+  <!-- Right Column: Security Panel -->
+  <div style="display: flex; flex-direction: column; gap: 1rem; position: sticky; top: 1rem; width: 280px; box-sizing: border-box;">
+       
+       <!-- Webcam Monitor Card -->
+       <div class="card" style="padding: 1rem; text-align: center; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow);">
+          <h3 style="font-size: 0.88rem; margin: 0 0 0.75rem 0; font-family: 'Outfit', sans-serif; font-weight: 600; text-align: left; display: flex; align-items: center; gap: 6px; color: var(--text);">
+             🛡️ Security Monitor
+          </h3>
+          <div style="position: relative; width: 100%; aspect-ratio: 4/3; background: #0c0d12; border: 1px solid var(--accent); border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+             <video id="proctor-webcam" autoplay playsinline muted style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);"></video>
+             <!-- Status overlay -->
+             <div style="position: absolute; top: 8px; left: 8px; display: flex; align-items: center; gap: 6px; padding: 4px 8px; background: rgba(12, 13, 18, 0.75); border-radius: 20px; font-size: 0.68rem; color: #fff;">
+                <span id="proctor-status-dot" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981;"></span>
+                <span id="proctor-status-text">Secure</span>
+             </div>
+          </div>
+          <div style="margin-top: 0.75rem; text-align: left; font-size: 0.76rem; color: var(--muted); display: flex; flex-direction: column; gap: 5px;">
+             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
+                <span>Proctoring Status:</span>
+                <span style="color: var(--accent2); font-weight: 600;">ACTIVE</span>
+             </div>
+             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
+                <span>Liveness Status:</span>
+                <span id="liveness-status-display" style="color: var(--accent2); font-weight: 600;">Checking...</span>
+             </div>
+             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
+                <span>Blinks Detected:</span>
+                <span id="blinks-display" style="color: #6366f1; font-weight: 600;">0</span>
+             </div>
+             <div style="display: flex; justify-content: space-between;">
+                <span>Security Warnings:</span>
+                <span id="proctor-warnings-display" style="font-weight: 600; color: var(--text);">0 / 5</span>
+             </div>
+          </div>
+       </div>
+
+       <!-- Audio Activity & Rules -->
+       <div class="card" style="padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow);">
+          <h4 style="margin: 0 0 0.5rem 0; font-size: 0.82rem; font-family: 'Outfit', sans-serif; font-weight: 600; color: var(--text);">Rules & Telemetry</h4>
+          <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.74rem; margin-bottom: 0.75rem; background: rgba(255,255,255,0.03); padding: 6px 10px; border-radius: 6px;">
+             <span>Audio Level:</span>
+             <span id="audio-activity-bar" style="display: inline-block; width: 60px; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; position: relative;">
+                <span id="audio-level-fill" style="display: block; width: 0%; height: 100%; background: var(--accent2); transition: width 0.1s ease;"></span>
+             </span>
+          </div>
+          <ul style="margin: 0; padding-left: 1.1rem; color: var(--muted); font-size: 0.72rem; line-height: 1.5; display: flex; flex-direction: column; gap: 3px;">
+             <li>Keep your face centered in the camera.</li>
+             <li>Avoid turning your head or looking away.</li>
+             <li>Background voices or noise will trigger alerts.</li>
+          </ul>
+       </div>
+
+        <!-- Live Warning History Card -->
+        <div id="live-violations-card" class="card" style="padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); display: none;">
+           <h4 style="margin: 0 0 0.5rem 0; font-size: 0.82rem; font-family: 'Outfit', sans-serif; font-weight: 600; color: #ef4444; display: flex; align-items: center; gap: 6px;">
+              ⚠️ Warning History
+           </h4>
+           <div id="live-violations-list" style="max-height: 150px; overflow-y: auto; font-size: 0.72rem; display: flex; flex-direction: column; gap: 6px; padding-right: 4px;">
+              <!-- Violation messages will be appended here dynamically -->
+           </div>
+        </div>
+  </div>
+
+  </div> <!-- ends Grid Layout -->
+  
+  <canvas id="proctor-canvas" width="320" height="240" style="display: none;"></canvas>
+  {% endif %}
+  {% endif %}
+</div>
+
+<script>
+const APPLICATION_ID = {{ application.id }};
+const SUBMIT_URL     = "{% url 'submit_answer' application.id %}";
+const CSRF_TOKEN     = "{{ csrf_token }}";
+const WS_URL         = `ws://${location.host}/ws/transcript/${APPLICATION_ID}/`;
+
+// ── State ──────────────────────────────────────────────────────
+let socket         = null;
+let mediaRecorder  = null;
+let isRecording    = false;
+let isSubmitting   = false;
+let ttsEnabled     = true;
+let fullTranscript = "";  // accumulates from server
+let submitAfterTranscript = false;
+
+// ── TTS ────────────────────────────────────────────────────────
+function toggleTTS(enabled) {
+  ttsEnabled = enabled;
+  if (!enabled) window.speechSynthesis.cancel();
+}
+
+function speakQuestion(text) {
+  if (!ttsEnabled || !window.speechSynthesis || !text) return;
+  window.speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.lang  = "en-US";
+  utt.rate  = 0.95;
+  window.speechSynthesis.speak(utt);
+}
+
+// ── WebSocket ──────────────────────────────────────────────────
+function connectWebSocket() {
+  socket = new WebSocket(WS_URL);
+
+  socket.onopen = () => {
+    setWsStatus("connected");
+    enableMic();
+  };
+
+  socket.onclose = () => {
+    setWsStatus("disconnected");
+    disableMic();
+    // Reconnect after 2 seconds
+    setTimeout(connectWebSocket, 2000);
+  };
+
+  socket.onerror = () => {
+    setWsStatus("error");
+  };
+
+  socket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    if (data.type === "interim" || data.type === "partial_final") {
+      // Live update from server as chunks arrive
+      fullTranscript = data.transcript;
+      updateDisplay(fullTranscript);
+
+    } else if (data.type === "final") {
+      // Stop confirmed by server — show analysis
+      fullTranscript = data.transcript;
+      updateDisplay(fullTranscript);
+      if (fullTranscript.trim()) {
+        document.getElementById("submit-btn").disabled = false;
+        showVocabFeedback(data.analysis);
+      }
+      
+      // Auto-submit if the user clicked Submit Answer while recording was active
+      if (submitAfterTranscript) {
+        submitAfterTranscript = false;
+        const answer = fullTranscript.trim();
+        if (!answer) {
+          isSubmitting = false;
+          // Hide loading spinner and restore card view
+          document.getElementById("thinking").style.display = "none";
+          document.getElementById("question-card").style.display = "block";
+          document.getElementById("answer-card").style.display = "block";
+          document.getElementById("mic-label").textContent = "⚠️ No answer detected. Please speak first.";
+          return;
+        }
+        sendAnswer(answer);
+      }
+    }
+  };
+}
+
+function setWsStatus(state) {
+  const dot = document.getElementById("ws-dot");
+  const lbl = document.getElementById("ws-label");
+  if (state === "connected") {
+    dot.style.background = "#16a766";
+    lbl.textContent      = "Connected — ready to record";
+  } else if (state === "disconnected") {
+    dot.style.background = "#f59e0b";
+    lbl.textContent      = "Reconnecting…";
+  } else {
+    dot.style.background = "#ef4444";
+    lbl.textContent      = "Connection error";
+  }
+}
+
+function enableMic() {
+  const btn = document.getElementById("mic-btn");
+  btn.disabled           = false;
+  btn.style.cursor       = "pointer";
+  btn.style.opacity      = "1";
+  btn.style.background   = "var(--accent2,#6c63ff)";
+  document.getElementById("mic-label").textContent =
+    "Click the mic button to start recording";
+}
+
+function disableMic() {
+  const btn = document.getElementById("mic-btn");
+  btn.disabled         = true;
+  btn.style.cursor     = "not-allowed";
+  btn.style.opacity    = ".6";
+  btn.style.background = "#888";
+  if (isRecording) stopRecording();
+}
+
+// ── MediaRecorder ──────────────────────────────────────────────
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount:    1,
+        sampleRate:      16000,
+        echoCancellation: true,
+        noiseSuppression: true,
+      }
+    });
+
+    fullTranscript = "";
+    updateDisplay("");
+    document.getElementById("submit-btn").disabled = false;
+    document.getElementById("vocab-feedback").style.display = "none";
+
+    // Send audio to server — Whisper wants 16kHz PCM
+    // We use AudioContext to downsample to 16kHz before sending
+    const audioCtx   = new AudioContext({ sampleRate: 16000 });
+    const source      = audioCtx.createMediaStreamSource(stream);
+    const processor   = audioCtx.createScriptProcessor(4096, 1, 1);
+
+    processor.onaudioprocess = (e) => {
+      if (!isRecording) return;
+      const float32 = e.inputBuffer.getChannelData(0);
+      // Convert float32 → int16 PCM
+      const int16   = new Int16Array(float32.length);
+      for (let i = 0; i < float32.length; i++) {
+        int16[i] = Math.max(-32768, Math.min(32767, float32[i] * 32768));
+      }
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(int16.buffer);
+      }
+    };
+
+    source.connect(processor);
+    processor.connect(audioCtx.destination);
+
+    // Store references so we can stop cleanly
+    mediaRecorder = { stream, audioCtx, source, processor };
+    isRecording   = true;
+
+    const btn = document.getElementById("mic-btn");
+    btn.textContent      = "⏹️";
+    btn.style.background = "#ff4d6d";
+    document.getElementById("mic-label").textContent = "🔴 Recording… click to stop";
+
+  } catch (err) {
+    if (err.name === "NotAllowedError") {
+      document.getElementById("mic-label").textContent =
+        "⚠️ Microphone access denied. Please allow mic in browser settings.";
+    } else {
+      console.error("Mic error:", err);
+      document.getElementById("mic-label").textContent =
+        "⚠️ Could not access microphone.";
+    }
+  }
+}
+
+function stopRecording() {
+  isRecording = false;
+
+  if (mediaRecorder) {
+    // Stop all tracks
+    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    mediaRecorder.processor.disconnect();
+    mediaRecorder.source.disconnect();
+    mediaRecorder.audioCtx.close();
+    mediaRecorder = null;
+  }
+
+  // Tell server we're done — triggers final transcription
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ action: "stop" }));
+  }
+
+  const btn = document.getElementById("mic-btn");
+  if (btn) {
+    btn.textContent      = "🎙️";
+    btn.style.background = "var(--accent2,#6c63ff)";
+  }
+  document.getElementById("mic-label").textContent =
+    "Click to speak again or submit your answer";
+}
+
+function toggleRecording() {
+  if (isRecording) {
+    stopRecording();
+  } else {
+    startRecording();
+  }
+}
+
+function clearTranscript() {
+  if (isRecording) stopRecording();
+  fullTranscript = "";
+  updateDisplay("");
+  document.getElementById("submit-btn").disabled = true;
+  document.getElementById("vocab-feedback").style.display = "none";
+  document.getElementById("mic-label").textContent =
+    "Click the mic button to start recording";
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ action: "clear" }));
+  }
+}
+
+function updateDisplay(text) {
+  const el = document.getElementById("answer-display");
+  if (el) el.textContent = text;
+}
+
+// ── Vocab feedback (uses server analysis dict) ────────────────
+function showVocabFeedback(analysis) {
+  if (!analysis) return;
+  const ttrPct      = Math.round((analysis.ttr || 0) * 100);
+  const fillerCount = analysis.filler_count || 0;
+  const wordCount   = analysis.word_count   || 0;
+  const ttr         = analysis.ttr          || 0;
+
+  const ttrColor    = ttr > 0.6 ? "#16a766" : ttr > 0.4 ? "#f59e0b" : "#ef4444";
+  const fillerColor = fillerCount > 3 ? "#ef4444"
+                    : fillerCount > 1 ? "#f59e0b" : "#16a766";
+  const fillers     = analysis.top_fillers || [];
+
+  const fb = document.getElementById("vocab-feedback");
+  fb.style.display = "block";
+  fb.innerHTML = `
+    <span style="margin-right:1rem;">
+      📊 Vocab richness: <b style="color:${ttrColor}">${ttrPct}%</b>
+    </span>
+    <span style="margin-right:1rem;">
+      💬 Words spoken: <b>${wordCount}</b>
+    </span>
+    <span>
+      🔁 Filler words: <b style="color:${fillerColor}">${fillerCount}</b>
+      ${fillers.length
+        ? `<span style="color:var(--muted,#888)">(${fillers.join(", ")})</span>`
+        : ""}
+    </span>`;
+}
+
+// ── Submit / skip ──────────────────────────────────────────────
+async function submitVoiceAnswer() {
+  if (isSubmitting) return;
+
+  if (isRecording) {
+    submitAfterTranscript = true;
+    isSubmitting = true;
+    setLoading("Finishing transcription & evaluating your answer…");
+    stopRecording();
+    return;
+  }
+
+  const answer = fullTranscript.trim();
+  if (!answer) {
+    document.getElementById("mic-label").textContent =
+      "⚠️ No answer detected. Please click the mic and speak first.";
+    return;
+  }
+
+  isSubmitting = true;
+  setLoading("Evaluating your answer…");
+  await sendAnswer(answer);
+}
+
+async function skipQuestion() {
+  if (isSubmitting) return;
+  if (isRecording) stopRecording();
+  isSubmitting = true;
+  setLoading("Moving to next question…");
+  await sendAnswer("");
+}
+
+// ── Loading / question / report display ───────────────────────
+function setLoading(msg) {
+  document.getElementById("question-card").style.display = "none";
+  document.getElementById("answer-card").style.display   = "none";
+  document.getElementById("thinking").style.display      = "block";
+  document.getElementById("thinking-text").textContent   = msg || "Evaluating…";
+}
+
+function showQuestion(state) {
+  document.getElementById("thinking").style.display       = "none";
+  document.getElementById("report-section").style.display = "none";
+  document.getElementById("question-card").style.display  = "block";
+  document.getElementById("answer-card").style.display    = "block";
+
+  document.getElementById("question-text").textContent = state.question;
+
+  fullTranscript = "";
+  updateDisplay("");
+  document.getElementById("submit-btn").disabled = true;
+  document.getElementById("vocab-feedback").style.display = "none";
+  document.getElementById("mic-label").textContent =
+    "Click the mic button to start recording";
+
+  const badge = document.getElementById("phase-badge");
+  if (state.phase === "followup") {
+    badge.className   = "badge badge-yellow";
+    badge.textContent = `🔄 Follow-up [${state.followup_count}/2]`;
+  } else {
+    badge.className   = "badge badge-purple";
+    badge.textContent = `🎙️ Question ${state.question_count}`;
+  }
+
+  const pct = Math.round((state.question_count / state.max_questions) * 100);
+  document.getElementById("progress-bar").style.width = pct + "%";
+  document.getElementById("q-num").textContent        = state.question_count;
+
+  isSubmitting = false;
+  speakQuestion(state.question);
+}
+
+function showReport(state) {
+  window.speechSynthesis.cancel();
+  if (isRecording) stopRecording();
+
+  document.getElementById("thinking").style.display      = "none";
+  document.getElementById("question-card").style.display = "none";
+  document.getElementById("answer-card").style.display   = "none";
+  document.getElementById("progress-bar").style.width    = "100%";
+
+  const r        = state.report || {};
+  const rec      = r.recommendation || "";
+  const recColor = rec.toLowerCase().includes("strongly") ? "var(--accent2,#6c63ff)"
+                 : rec.toLowerCase().includes("do not")   ? "#ef4444"
+                 : "var(--accent,#6c63ff)";
+
+  document.getElementById("report-section").style.display = "block";
+  document.getElementById("report-section").innerHTML = `
+    <div style="text-align:center; padding:1.5rem 0 1rem;">
+      <div style="font-size:3rem;">📋</div>
+      <h2 style="margin-top:.75rem;">Interview Complete</h2>
+      <p style="color:var(--muted); font-size:.9rem; margin-top:.3rem;">Here's your evaluation report</p>
+    </div>
+
+    <div class="card">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;
+                  text-align:center; margin-bottom:1.25rem;">
+        <div style="border:1px solid var(--border); border-radius:var(--radius,8px); padding:.75rem;">
+          <div style="font-size:1.6rem; font-weight:600;">${(r.percentage||0).toFixed(1)}%</div>
+          <div style="font-size:.8rem; color:var(--muted);">Overall Score</div>
+        </div>
+        <div style="border:1px solid var(--border); border-radius:var(--radius,8px); padding:.75rem;">
+          <div style="font-size:1.4rem; font-weight:600; color:${recColor};">${r.rating||"—"}</div>
+          <div style="font-size:.8rem; color:var(--muted);">Performance Rating</div>
+        </div>
+      </div>
+
+      <div style="padding:.75rem 1rem; background:rgba(108,99,255,.08);
+                  border-radius:8px; margin-bottom:1rem;">
+        <span style="font-size:.8rem; color:var(--muted);">Hiring Recommendation &nbsp;·&nbsp;</span>
+        <span style="font-weight:600; color:${recColor};">${rec||"—"}</span>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
+        <div>
+          <div style="font-size:.82rem; color:var(--muted); font-weight:600; margin-bottom:.5rem;">💪 Strong Areas</div>
+          ${(r.strong_topics||[]).map(t=>`<div style="font-size:.85rem;margin-bottom:.3rem;">• ${t}</div>`).join("")||"<div style='color:var(--muted);font-size:.85rem;'>None identified</div>"}
+        </div>
+        <div>
+          <div style="font-size:.82rem; color:var(--muted); font-weight:600; margin-bottom:.5rem;">⚠️ Weak Areas</div>
+          ${(r.weak_topics||[]).map(t=>`<div style="font-size:.85rem;margin-bottom:.3rem;">• ${t}</div>`).join("")||"<div style='color:var(--muted);font-size:.85rem;'>None identified</div>"}
+        </div>
+      </div>
+
+      ${r.missing_skills&&r.missing_skills.length?`
+      <hr/>
+      <div style="font-size:.82rem; color:var(--muted); font-weight:600; margin-bottom:.5rem;">❌ Missing Skills</div>
+      <div style="display:flex; flex-wrap:wrap; gap:.4rem;">
+        ${r.missing_skills.map(s=>`<span class="tag" style="background:rgba(255,77,109,.12);color:#ef4444;">${s}</span>`).join("")}
+      </div>`:""}
+
+      <hr/>
+      <div style="font-size:.82rem; color:var(--muted); font-weight:600; margin-bottom:.5rem;">🗣️ Speaking Assessment</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:.75rem;
+                  text-align:center; margin-bottom:1rem;">
+        <div style="border:1px solid var(--border); border-radius:8px; padding:.6rem;">
+          <div style="font-size:1.2rem; font-weight:600;">${(r.avg_fluency||0).toFixed(1)}/10</div>
+          <div style="font-size:.75rem; color:var(--muted);">Fluency Score</div>
+        </div>
+        <div style="border:1px solid var(--border); border-radius:8px; padding:.6rem;">
+          <div style="font-size:1.2rem; font-weight:600;">${r.vocab_level||"—"}</div>
+          <div style="font-size:.75rem; color:var(--muted);">Vocabulary Level</div>
+        </div>
+        <div style="border:1px solid var(--border); border-radius:8px; padding:.6rem;">
+          <div style="font-size:1.2rem; font-weight:600;">${(r.filler_ratio||0).toFixed(1)}%</div>
+          <div style="font-size:.75rem; color:var(--muted);">Filler Words</div>
+        </div>
+      </div>
+
+      <hr/>
+      <div style="font-size:.82rem; color:var(--muted); font-weight:600; margin-bottom:.5rem;">📝 Final Verdict</div>
+      <p style="font-size:.9rem; line-height:1.7;">${r.verdict||"—"}</p>
+    </div>
+
+    <div style="text-align:center; margin-top:1.5rem;">
+      <a href="/" class="btn btn-outline">← Back to Jobs</a>
+    </div>`;
+}
+
+// ── Network ────────────────────────────────────────────────────
+async function sendAnswer(answer) {
+  try {
+    const resp = await fetch(SUBMIT_URL, {
+      method:  "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken":  CSRF_TOKEN,
+      },
+      body: JSON.stringify({ answer }),
+    });
+
+    if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
+
+    const state = await resp.json();
+    if (state.phase === "finished") {
+      showReport(state);
+    } else {
+      showQuestion(state);
+    }
+  } catch (e) {
+    console.error("Submit error:", e);
+    document.getElementById("thinking").style.display      = "none";
+    document.getElementById("question-card").style.display = "block";
+    document.getElementById("answer-card").style.display   = "block";
+    document.getElementById("mic-label").textContent =
+      "⚠️ Network error — please try again.";
+    isSubmitting = false;
+  }
+}
+
+// ── Face Verification JS ───────────────────────────────────────
+let webcamStream = null;
+const IS_VERIFIED = {{ application.is_verified|yesno:"true,false" }};
+const RULES_ACCEPTED = {{ rules_accepted|yesno:"true,false" }};
+
+async function preloadModels() {
+  const btn = document.getElementById("btn-capture");
+  const statusDiv = document.getElementById("verify-status");
+  try {
+    const response = await fetch("{% url 'preload_models' application.id %}");
+    const result = await response.json();
+    if (result.success) {
+      if (statusDiv) {
+        statusDiv.style.color = "var(--accent2)";
+        statusDiv.innerHTML = "✅ AI Security Engine Initialized. Ready to verify.";
+      }
+      if (btn) {
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        btn.style.cursor = "pointer";
+      }
+    } else {
+      if (statusDiv) {
+        statusDiv.style.color = "var(--danger)";
+        statusDiv.innerHTML = "⚠️ Security Engine initialization failed. You can still try to verify.";
+      }
+      if (btn) {
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        btn.style.cursor = "pointer";
+      }
+    }
+  } catch (err) {
+    console.error("Preloading error:", err);
+    if (statusDiv) {
+      statusDiv.style.color = "var(--danger)";
+      statusDiv.innerHTML = "⚠️ Engine warmup timed out. You may proceed with verification.";
+    }
+    if (btn) {
+      btn.disabled = false;
+      btn.style.opacity = "1";
+      btn.style.cursor = "pointer";
+    }
+  }
+}
+
+async function acceptRulesAndStart() {
+  const checkbox = document.getElementById("rules-agree");
+  const errDiv = document.getElementById("rules-error");
+  const btn = document.getElementById("btn-start-interview");
+
+  if (!checkbox || !checkbox.checked) {
+    if (errDiv) errDiv.style.display = "block";
+    return;
+  }
+  if (errDiv) errDiv.style.display = "none";
+  if (btn) btn.disabled = true;
+
+  try {
+    const response = await fetch("{% url 'start_interview' application.id %}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": CSRF_TOKEN,
+      }
+    });
+    const result = await response.json();
+    if (result.success) {
+      window.location.reload();
+    } else {
+      if (btn) btn.disabled = false;
+      alert("Error starting session: " + (result.error || "Please try again."));
+    }
+  } catch (err) {
+    console.error("Start interview error:", err);
+    if (btn) btn.disabled = false;
+    alert("Network error starting interview. Please try again.");
+  }
+}
+
+async function startWebcam() {
+  try {
+    webcamStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    const video = document.getElementById("webcam-preview");
+    if (video) {
+      video.srcObject = webcamStream;
+    }
+  } catch (err) {
+    console.error("Webcam error:", err);
+    const errDiv = document.getElementById("verify-error");
+    if (errDiv) {
+      errDiv.textContent = "Unable to access webcam. Please ensure your camera is connected and you have granted permissions.";
+      errDiv.style.display = "block";
+    }
+  }
+}
+
+async function captureAndVerify() {
+  const video = document.getElementById("webcam-preview");
+  const canvas = document.getElementById("webcam-canvas");
+  const btn = document.getElementById("btn-capture");
+  const errDiv = document.getElementById("verify-error");
+  const statusDiv = document.getElementById("verify-status");
+
+  if (!video || !canvas) return;
+
+  btn.disabled = true;
+  statusDiv.innerHTML = "Capturing frame and running DeepFace matching... <span style='animation:pulse 1.2s infinite;'>🤔</span>";
+  errDiv.style.display = "none";
+
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL("image/jpeg");
+
+  try {
+    const response = await fetch("{% url 'verify_face' application.id %}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": CSRF_TOKEN,
+      },
+      body: JSON.stringify({ image: dataUrl })
+    });
+
+    const result = await response.json();
+    if (result.success && result.verified) {
+      statusDiv.style.color = "var(--accent2)";
+      statusDiv.textContent = result.message;
+      if (webcamStream) {
+        webcamStream.getTracks().forEach(t => t.stop());
+      }
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } else {
+      statusDiv.textContent = "Verification failed.";
+      errDiv.textContent = result.error || result.message || "Match failed.";
+      errDiv.style.display = "block";
+      btn.disabled = false;
+    }
+  } catch (err) {
+    console.error("Verification fetch error:", err);
+    statusDiv.textContent = "Error occurred.";
+    errDiv.textContent = "Network error during face verification. Please try again.";
+    errDiv.style.display = "block";
+    btn.disabled = false;
+  }
+}
+
+// ── Proctoring Logic ──────────────────────────────────────────
+let proctorStream = null;
+let proctorInterval = null;
+let audioContext = null;
+let audioAnalyser = null;
+let audioDataArray = null;
+let isDisqualified = {{ application.is_disqualified|yesno:"true,false" }};
+const INITIAL_SECURITY_LOG = {{ application.security_log|safe|default:"[]" }};
+
+let flagTabSwitching = false;
+let flagFullscreenExit = false;
+let highNoiseStart = null;
+let isHighNoiseActive = false;
+
+function monitorFullscreenStatus() {
+  const overlay = document.getElementById("fullscreen-warning-overlay");
+  if (!document.fullscreenElement && IS_VERIFIED && RULES_ACCEPTED) {
+    if (overlay) overlay.style.display = "flex";
+  } else {
+    if (overlay) overlay.style.display = "none";
+  }
+}
+
+function enterFullscreenAndResume() {
+  document.documentElement.requestFullscreen().then(() => {
+    monitorFullscreenStatus();
+  }).catch(err => {
+    console.error("Fullscreen request failed:", err);
+  });
+}
+
+// Global fullscreen enforcement
+if (IS_VERIFIED && RULES_ACCEPTED) {
+  document.addEventListener("fullscreenchange", () => {
+    monitorFullscreenStatus();
+    if (!document.fullscreenElement) {
+      flagFullscreenExit = true;
+      showProctorWarning("Security Alert: Fullscreen mode exited!");
+    }
+  });
+
+  // Tab switching detection
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      flagTabSwitching = true;
+      showProctorWarning("Security Alert: Tab switching detected!");
+    }
+  });
+
+  // Prevent copying, pasting, right-click, context menu
+  document.addEventListener("contextmenu", e => e.preventDefault());
+  document.addEventListener("copy", e => e.preventDefault());
+  document.addEventListener("cut", e => e.preventDefault());
+  document.addEventListener("paste", e => e.preventDefault());
+
+  // Prevent text selection
+  document.body.style.userSelect = "none";
+  document.body.style.webkitUserSelect = "none";
+}
+
+// Create a premium warning banner overlay
+const warnBanner = document.createElement("div");
+warnBanner.id = "proctor-warn-banner";
+warnBanner.style.cssText = "position: fixed; top: 1.5rem; left: 50%; transform: translateX(-50%); z-index: 9999; display: none; padding: 0.85rem 1.75rem; background: rgba(239, 68, 68, 0.95); color: white; border-radius: var(--radius, 8px); font-weight: 600; box-shadow: 0 4px 20px rgba(239, 68, 68, 0.35); font-family: 'Outfit', sans-serif; font-size: 0.92rem; pointer-events: none; transition: all 0.3s; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1);";
+document.body.appendChild(warnBanner);
+
+function showProctorWarning(msg) {
+  warnBanner.innerHTML = `⚠️ &nbsp; ${msg}`;
+  warnBanner.style.display = "block";
+  setTimeout(() => {
+    warnBanner.style.display = "none";
+  }, 4000);
+}
+
+function updateLiveViolationsList(log) {
+  const violationsCard = document.getElementById("live-violations-card");
+  const violationsList = document.getElementById("live-violations-list");
+  if (!violationsCard || !violationsList) return;
+  
+  if (log && log.length > 0) {
+    violationsCard.style.display = "block";
+    violationsList.innerHTML = log.map(entry => {
+      const time = entry.timestamp ? entry.timestamp.split(" ")[1] : "Unknown";
+      return entry.violations.map(v => `
+        <div style="background: rgba(239, 68, 68, 0.05); border-left: 2px solid #ef4444; padding: 4px 8px; border-radius: 0 4px 4px 0; line-height: 1.3; margin-bottom: 4px; text-align: left;">
+          <span style="color: #ef4444; font-weight: 600;">[${time}]</span> ${v}
+        </div>
+      `).join("");
+    }).join("");
+  } else {
+    violationsCard.style.display = "none";
+  }
+}
+
+async function startProctoring() {
+  if (isDisqualified) {
+    handleDisqualification(INITIAL_SECURITY_LOG);
+    return;
+  }
+
+  // Show any initial warnings that already exist
+  updateLiveViolationsList(INITIAL_SECURITY_LOG);
+
+  try {
+    // Request webcam and audio
+    proctorStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    
+    const video = document.getElementById("proctor-webcam");
+    if (video) {
+      video.srcObject = proctorStream;
+    }
+    
+    // Initialize Web Audio API for volume monitoring
+    try {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioContext.createMediaStreamSource(proctorStream);
+      audioAnalyser = audioContext.createAnalyser();
+      audioAnalyser.fftSize = 512;
+      source.connect(audioAnalyser);
+      audioDataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+      
+      // Start live volume visualization
+      monitorAudioVolume();
+    } catch (ae) {
+      console.warn("Could not setup audio context:", ae);
+    }
+
+    // Proctor check-in loop every 2 seconds (rapid lightweight checks)
+    proctorInterval = setInterval(runProctoringCheck, 2000);
+    
+    // Show activation warning pop-up
+    showProctorWarning("Security Proctoring Activated: Camera & microphone are monitored.");
+  } catch (err) {
+    console.error("Camera access error:", err);
+    showProctorWarning("Camera and Microphone are required to maintain interview integrity.");
+  }
+}
+
+function monitorAudioVolume() {
+  if (isDisqualified) return;
+  
+  if (audioAnalyser && audioDataArray) {
+    audioAnalyser.getByteFrequencyData(audioDataArray);
+    let sum = 0;
+    for (let i = 0; i < audioDataArray.length; i++) {
+      sum += audioDataArray[i];
+    }
+    const avgVolume = sum / audioDataArray.length;
+    
+    // Update visual audio level bar (now using the 45 threshold)
+    const levelPct = Math.min(100, Math.round((avgVolume / 128) * 100));
+    const fill = document.getElementById("audio-level-fill");
+    if (fill) {
+      fill.style.width = levelPct + "%";
+      if (avgVolume > 45) {
+        fill.style.background = "#ef4444"; // red warning spike
+      } else {
+        fill.style.background = "var(--accent2)";
+      }
+    }
+
+    // Check if volume is continuously high (> 45) for more than 2.5 seconds (2500ms)
+    if (avgVolume > 45 && !isRecording) {
+      if (!highNoiseStart) {
+        highNoiseStart = Date.now();
+      } else if (Date.now() - highNoiseStart >= 2500) {
+        isHighNoiseActive = true;
+      }
+    } else {
+      highNoiseStart = null;
+      isHighNoiseActive = false;
+    }
+  }
+  requestAnimationFrame(monitorAudioVolume);
+}
+
+async function runProctoringCheck() {
+  if (isDisqualified) return;
+
+  const video = document.getElementById("proctor-webcam");
+  const canvas = document.getElementById("proctor-canvas");
+  if (!video || !canvas) return;
+
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.60); // Downscale quality to be highly lightweight
+
+  // Use continuously monitored ambient noise flag (requires continuous volume > 45 for >= 2.5 seconds)
+  let ambientNoise = isHighNoiseActive;
+
+  try {
+    const response = await fetch("{% url 'submit_proctoring' application.id %}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": CSRF_TOKEN,
+      },
+      body: JSON.stringify({
+        image: dataUrl,
+        warnings: {
+          ambient_noise: ambientNoise,
+          tab_switching: flagTabSwitching,
+          fullscreen_exit: flagFullscreenExit
+        }
+      })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      // Reset flags since they have been successfully logged
+      flagTabSwitching = false;
+      flagFullscreenExit = false;
+
+      // Update Live Warning History List
+      updateLiveViolationsList(result.security_log);
+
+      // 1. Update Warnings display in Sidebar
+      const warningsDisplay = document.getElementById("proctor-warnings-display");
+      if (warningsDisplay) {
+        warningsDisplay.textContent = `${result.warnings_count} / 5`;
+        if (result.warnings_count > 0) {
+          warningsDisplay.style.color = "#ef4444";
+        } else {
+          warningsDisplay.style.color = "var(--text)";
+        }
+      }
+
+      // Update Liveness status and Blinks count
+      const blinksDisp = document.getElementById("blinks-display");
+      if (blinksDisp && result.blinks_count !== undefined) {
+        blinksDisp.textContent = result.blinks_count;
+      }
+      const livenessDisp = document.getElementById("liveness-status-display");
+      if (livenessDisp && result.liveness_status) {
+        livenessDisp.textContent = result.liveness_status;
+        if (result.liveness_status.includes("Failed") || result.liveness_status.includes("No Face")) {
+          livenessDisp.style.color = "#ef4444";
+        } else {
+          livenessDisp.style.color = "var(--accent2)";
+        }
+      }
+
+      // 2. Update Status dot and text in Sidebar
+      const dot = document.getElementById("proctor-status-dot");
+      const statusText = document.getElementById("proctor-status-text");
+
+      if (result.violations && result.violations.length > 0) {
+        showProctorWarning(`${result.violations[0]} (Warnings: ${result.warnings_count}/5)`);
+        if (dot) {
+          dot.style.background = "#f59e0b"; // yellow warning
+          dot.style.boxShadow = "0 0 8px #f59e0b";
+        }
+        if (statusText) {
+          statusText.textContent = "Warning";
+          statusText.style.color = "#f59e0b";
+        }
+      } else {
+        if (result.notice) {
+          showProctorWarning(result.notice);
+        }
+        if (dot) {
+          dot.style.background = "#10b981"; // green secure
+          dot.style.boxShadow = "0 0 8px #10b981";
+        }
+        if (statusText) {
+          statusText.textContent = "Secure";
+          statusText.style.color = "#10b981";
+        }
+      }
+      
+      // 3. Disqualification check
+      if (result.is_disqualified) {
+        isDisqualified = true;
+        handleDisqualification(result.security_log);
+      }
+    }
+  } catch (e) {
+    console.error("Proctor check failed:", e);
+  }
+}
+
+function handleDisqualification(log) {
+  clearInterval(proctorInterval);
+  if (proctorStream) {
+    proctorStream.getTracks().forEach(t => t.stop());
+  }
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+  
+  // Format the security violations activity log list
+  let logHtml = "";
+  if (log && log.length > 0) {
+    logHtml = `
+      <div style="text-align: left; max-width: 500px; margin: 1.5rem auto; padding: 1rem; background: rgba(239, 68, 68, 0.08); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.15); font-family: 'Outfit', sans-serif;">
+        <h4 style="margin: 0 0 0.75rem 0; color: #ef4444; font-size: 0.9rem; font-weight: 600;">Activity Log (Violations):</h4>
+        <ul style="margin: 0; padding-left: 1.2rem; font-size: 0.82rem; color: var(--text); display: flex; flex-direction: column; gap: 6px; line-height: 1.4;">
+          ${log.map(entry => {
+            const time = entry.timestamp || "Unknown time";
+            const violationsList = (entry.violations || []).join(", ");
+            return `<li><span style="color: #ef4444; font-weight: 600;">[${time}]</span>: ${violationsList}</li>`;
+          }).join("")}
+        </ul>
+      </div>
+    `;
+  } else {
+    logHtml = `<p style="font-size: 0.82rem; color: var(--muted); margin-top: 1rem;">No detailed activity logs recorded.</p>`;
+  }
+  
+  const container = document.getElementById("interview-box") || document.body;
+  container.innerHTML = `
+    <div class="card" style="padding: 3rem 2rem; text-align: center; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 12px; margin-top: 1.5rem; background: rgba(239, 68, 68, 0.04); backdrop-filter: blur(10px);">
+      <div style="font-size: 4.5rem; margin-bottom: 1rem; animation: pulse 2s infinite;">🚫</div>
+      <h2 style="color: #ef4444; font-family: 'Outfit', sans-serif; font-size: 1.8rem; margin-bottom: 0.75rem;">Session Terminated</h2>
+      <p style="color: var(--text); font-size: 0.95rem; line-height: 1.6; max-width: 500px; margin: 0 auto 1.5rem; opacity: 0.85;">
+        This session has been terminated due to repeated security and proctoring violations detected during the session. Below is the activity list that led to your disqualification:
+      </p>
+      ${logHtml}
+      <div style="margin-top: 2rem;">
+        <a href="/" class="btn btn-outline" style="padding: 0.75rem 2rem;">Return to Dashboard</a>
+      </div>
+    </div>
+  `;
+}
+
+// ── Page load ──────────────────────────────────────────────────
+window.addEventListener("load", () => {
+  if (IS_VERIFIED && RULES_ACCEPTED) {
+    connectWebSocket();
+    startProctoring();
+    setTimeout(monitorFullscreenStatus, 1000);
+
+    const initialQ = document.getElementById("question-text");
+    if (initialQ && initialQ.textContent.trim()) {
+      speakQuestion(initialQ.textContent.trim());
+    }
+  } else if (!IS_VERIFIED) {
+    startWebcam();
+    preloadModels();
+  }
+});
+</script>
+{% endblock %}

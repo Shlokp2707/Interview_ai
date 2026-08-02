@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Post a Job — HireAI{% endblock %}
+{% block content %}
+<div class="container" style="max-width:680px;">
+  <div class="page-header">
+    <h1>Post a Job</h1>
+    <p>Fill in the details. Candidates will be screened by ATS and then interviewed by AI.</p>
+  </div>
+
+  <div class="card">
+    <form method="post">
+      {% csrf_token %}
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Job Title *</label>
+          <input type="text" name="title" placeholder="e.g. Python Backend Developer" required/>
+        </div>
+        <div class="form-group">
+          <label>Company *</label>
+          <input type="text" name="company" placeholder="e.g. AI Startup" required/>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Job Description *</label>
+        <textarea name="description" rows="5" placeholder="Describe the role, responsibilities, and requirements..." required></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Required Skills <span style="color:var(--muted)">(comma separated)</span></label>
+        <input type="text" name="required_skills" placeholder="Python, Django, PostgreSQL, LangChain"/>
+      </div>
+
+      <div class="form-group">
+        <label>Nice to Have <span style="color:var(--muted)">(comma separated)</span></label>
+        <input type="text" name="nice_to_have" placeholder="LangGraph, FastAPI, Redis"/>
+      </div>
+
+      <div class="form-group">
+        <label>Responsibilities <span style="color:var(--muted)">(one per line)</span></label>
+        <textarea name="responsibilities" rows="4" placeholder="Build and maintain Django REST APIs&#10;Integrate LLM pipelines&#10;Write unit tests"></textarea>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Experience Required</label>
+          <input type="text" name="experience" placeholder="1-3 years" value="0-2 years"/>
+        </div>
+        <div class="form-group">
+          <label>Max Interview Questions</label>
+          <input type="number" name="max_questions" value="5" min="3" max="15"/>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>ATS Pass Threshold (%) <span style="color:var(--muted)">— candidates above this score get invited</span></label>
+        <input type="number" name="ats_threshold" value="50" min="0" max="100" step="0.5"/>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; padding:.75rem;">Post Job</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

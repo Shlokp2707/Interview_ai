@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Applications — {{ job.title }}{% endblock %}
+{% block content %}
+<div class="container-wide">
+  <div class="page-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+    <div>
+      <h1>{{ job.title }}</h1>
+      <p>{{ job.company }} &nbsp;·&nbsp; {{ applications.count }} application{{ applications.count|pluralize }}</p>
+    </div>
+    <a href="{% url 'hr_dashboard' %}" class="btn btn-outline">← Dashboard</a>
+  </div>
+
+  {% if not applications %}
+    <div class="card" style="text-align:center; padding:3rem;">
+      <p style="color:var(--muted);">No applications yet.</p>
+    </div>
+  {% endif %}
+
+  {% for app in applications %}
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:.75rem;">
+      <div style="display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
+        {% if app.candidate_image %}
+          <img src="{{ app.candidate_image.url }}" alt="{{ app.candidate_name }}" style="width:60px; height:60px; border-radius:50%; object-fit:cover; border:2px solid var(--border);"/>
+        {% endif %}
+        <div>
+          <div class="card-title" style="margin:0;">{{ app.candidate_name }}</div>
+          <div class="card-meta" style="margin:0; margin-top:.25rem;">{{ app.candidate_email }} &nbsp;·&nbsp; Applied {{ app.applied_at|date:"M d, Y" }}</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
+        {% if app.is_verified %}
+          <span class="badge" style="background:var(--accent2-glow); color:var(--accent2); border:1px solid rgba(16,185,129,0.3); font-size:0.75rem; padding:0.25rem 0.5rem; border-radius:4px;">🔒 Verified ({{ app.verification_score }}%)</span>
+        {% else %}
+          {% if app.verification_attempts > 0 %}
+            <span class="badge" style="background:rgba(239,68,68,0.1); color:var(--danger); border:1px solid rgba(239,68,68,0.2); font-size:0.75rem; padding:0.25rem 0.5rem; border-radius:4px;">🔓 Verification Failed</span>
+          {% else %}
+            <span class="badge badge-gray" style="font-size:0.75rem; padding:0.25rem 0.5rem; border-radius:4px;">🔓 Unverified</span>
+          {% endif %}
+        {% endif %}
+
+        {% if app.status == "hired" %}
+          <span class="badge badge-green">✅ Hired</span>
+        {% elif app.status == "rejected" %}
+          <span class="badge badge-red">❌ Rejected</span>
+        {% elif app.status == "interview_done" %}
+          <span class="badge badge-purple">🎯 Interview Done</span>
+        {% elif app.status == "interview_scheduled" %}
+          <span class="badge badge-yellow">📅 Interview Scheduled</span>
+        {% elif app.status == "ats_passed" %}
+          <span class="badge badge-green">✓ ATS Passed</span>
+        {% elif app.status == "ats_failed" %}
+          <span class="badge badge-red">✗ ATS Failed</span>
+        {% else %}
+          <span class="badge badge-gray">Pending</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ATS score -->
+    {% if app.ats_score is not None %}
+    <div style="margin-top:.75rem;">
+      <div style="display:flex; justify-content:space-between; font-size:.82rem; color:var(--muted); margin-bottom:.3rem;">
+        <span>ATS Score</span>
+        <span>{{ app.ats_score|floatformat:1 }}%</span>
+      </div>
+      <div class="score-bar-wrap">
+        <div class="score-bar"
+             style="width:{{ app.ats_score|floatformat:0 }}%;
+                    background:{% if app.ats_score >= 70 %}var(--accent2){% elif app.ats_score >= 50 %}var(--accent){% else %}var(--danger){% endif %};">
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Interview result -->
+    {% if app.interview_percentage %}
+    <div style="margin-top:.5rem;">
+      <div style="display:flex; justify-content:space-between; font-size:.82rem; color:var(--muted); margin-bottom:.3rem;">
+        <span>Interview Score &nbsp;·&nbsp; {{ app.interview_rating }}</span>
+        <span>{{ app.interview_percentage|floatformat:1 }}%</span>
+      </div>
+      <div class="score-bar-wrap">
+        <div class="score-bar"
+             style="width:{{ app.interview_percentage|floatformat:0 }}%; background:var(--accent2);">
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if app.interview_recommendation %}
+    <div style="margin-top:.5rem; font-size:.82rem; color:var(--muted);">
+      Recommendation: <strong style="color:var(--text);">{{ app.interview_recommendation }}</strong>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

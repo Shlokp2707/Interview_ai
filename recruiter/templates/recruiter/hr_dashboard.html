@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}HR Dashboard — HireAI{% endblock %}
+{% block content %}
+<div class="container-wide">
+  <div class="page-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+    <div>
+      <h1>HR Dashboard</h1>
+      <p>Manage job postings and review candidates.</p>
+    </div>
+    <a href="{% url 'create_job' %}" class="btn btn-primary">+ Post New Job</a>
+  </div>
+
+  {% if not jobs %}
+    <div class="card" style="text-align:center; padding:3rem;">
+      <p style="color:var(--muted);">No jobs posted yet.</p>
+    </div>
+  {% endif %}
+
+  {% for job in jobs %}
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:.5rem;">
+      <div>
+        <div class="card-title">{{ job.title }}</div>
+        <div class="card-meta">{{ job.company }} &nbsp;·&nbsp; {{ job.experience }} &nbsp;·&nbsp; ATS threshold: {{ job.ats_threshold }}%</div>
+        <div class="tags">
+          {% for skill in job.required_skills %}<span class="tag">{{ skill }}</span>{% endfor %}
+        </div>
+      </div>
+      <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
+        {% if job.is_active %}<span class="badge badge-green">Active</span>{% else %}<span class="badge badge-gray">Inactive</span>{% endif %}
+        <a href="{% url 'job_applications' job.id %}" class="btn btn-outline btn-sm">View {{ job.applications.count }} Application{{ job.applications.count|pluralize }}</a>
+      </div>
+    </div>
+
+    <!-- Quick stats -->
+    <div style="display:flex; gap:1.5rem; margin-top:1rem; flex-wrap:wrap;">
+      {% with apps=job.applications.all %}
+      <span style="font-size:.82rem; color:var(--muted);">
+        ✅ ATS Passed: {{ apps|length }}
+      </span>
+      {% endwith %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
