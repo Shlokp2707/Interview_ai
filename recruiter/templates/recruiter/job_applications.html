@@ -89,11 +89,72 @@
     {% endif %}
 
     {% if app.interview_recommendation %}
-    <div style="margin-top:.5rem; font-size:.82rem; color:var(--muted);">
-      Recommendation: <strong style="color:var(--text);">{{ app.interview_recommendation }}</strong>
+    <div style="margin-top:.5rem; font-size:.82rem; color:var(--muted); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+      <div>Recommendation: <strong style="color:var(--text);">{{ app.interview_recommendation }}</strong></div>
+      {% if app.interview_report %}
+      <button class="btn btn-outline btn-sm" onclick="toggleReport('report-{{ app.id }}')" style="padding:0.25rem 0.5rem; font-size:0.75rem; border-radius:4px;">
+        👁️ View Evaluation Report
+      </button>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Speak and expression details -->
+    {% if app.interview_speaking_fluency or app.interview_analytics %}
+    <div style="margin-top:0.75rem; background:rgba(255,255,255,0.01); border:1px solid var(--border); border-radius:8px; padding:0.75rem 1rem;">
+      <div style="font-size:0.75rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.5rem;">Communication & Expression Analytics</div>
+      <div style="display:flex; flex-wrap:wrap; gap:0.75rem; font-size:0.8rem;">
+        {% if app.interview_speaking_fluency %}
+          <span>Fluency: <strong style="color:var(--text);">{{ app.interview_speaking_fluency|floatformat:1 }}/10</strong></span>
+          <span>·</span>
+        {% endif %}
+        {% if app.interview_vocab_level %}
+          <span>Vocab: <strong style="color:var(--text);">{{ app.interview_vocab_level }}</strong></span>
+          <span>·</span>
+        {% endif %}
+        {% if app.interview_filler_ratio is not None %}
+          <span>Fillers: <strong style="color:{% if app.interview_filler_ratio <= 3.0 %}var(--accent2){% else %}var(--warn){% endif %};">{{ app.interview_filler_ratio|floatformat:1 }}%</strong></span>
+        {% endif %}
+        {% if app.interview_analytics.avg_confidence is not None %}
+          <span>·</span>
+          <span>Confidence: <strong style="color:var(--accent2);">{{ app.interview_analytics.avg_confidence|floatformat:1 }}%</strong></span>
+        {% endif %}
+      </div>
+      
+      <!-- Dominant Emotion summary -->
+      {% if app.interview_analytics.emotions_distribution %}
+      <div style="display:flex; flex-wrap:wrap; gap:0.35rem; margin-top:0.5rem; align-items:center;">
+        <span style="font-size:0.75rem; color:var(--muted);">Emotions detected:</span>
+        {% for emotion, count in app.interview_analytics.emotions_distribution.items %}
+          <span style="font-size:0.75rem; background:rgba(255,255,255,0.03); padding:0.1rem 0.35rem; border-radius:3px; color:var(--muted);">
+            {{ emotion|title }}: {{ count }}
+          </span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Toggleable evaluation report -->
+    {% if app.interview_report %}
+    <div id="report-{{ app.id }}" style="display:none; margin-top:0.75rem; background:rgba(10,11,16,0.5); border:1px solid var(--border); border-radius:8px; padding:1rem; font-size:0.82rem; line-height:1.5; white-space:pre-line; color:var(--text); max-height:250px; overflow-y:auto;">
+      {{ app.interview_report }}
     </div>
     {% endif %}
   </div>
   {% endfor %}
 </div>
+
+<script>
+function toggleReport(id) {
+  var el = document.getElementById(id);
+  if (el) {
+    if (el.style.display === "none" || el.style.display === "") {
+      el.style.display = "block";
+    } else {
+      el.style.display = "none";
+    }
+  }
+}
+</script>
 {% endblock %}

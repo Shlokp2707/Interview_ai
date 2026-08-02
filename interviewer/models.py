@@ -63,6 +63,12 @@ class Application(models.Model):
     interview_rating    = models.CharField(max_length=50, blank=True)
     interview_percentage = models.FloatField(null=True, blank=True)
     interview_recommendation = models.CharField(max_length=100, blank=True)
+    
+    # Communication and human expression analytics
+    interview_speaking_fluency = models.FloatField(null=True, blank=True)
+    interview_vocab_level      = models.CharField(max_length=50, blank=True)
+    interview_filler_ratio     = models.FloatField(null=True, blank=True)
+    interview_analytics        = models.JSONField(default=dict, blank=True)
 
     applied_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

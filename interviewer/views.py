@@ -135,6 +135,25 @@ def submit_interview_answer(request, application_id):
         application.interview_vocab_level        = report.get("vocab_level", "")
         application.interview_filler_ratio       = report.get("filler_ratio", 0.0)
 
+        # Compile communication and expression analytics
+        emotions = request.session.get("emotions_history", [])
+        nervousness = request.session.get("nervousness_history", [])
+        
+        emotion_counts = {}
+        for em in emotions:
+            emotion_counts[em] = emotion_counts.get(em, 0) + 1
+            
+        avg_nervousness = sum(nervousness) / len(nervousness) if nervousness else 0.0
+        avg_confidence = max(0.0, 100.0 - avg_nervousness)
+        
+        analytics = {
+            "emotions_distribution": emotion_counts,
+            "avg_nervousness": round(avg_nervousness, 1),
+            "avg_confidence": round(avg_confidence, 1),
+            "total_expression_checks": len(emotions),
+        }
+        application.interview_analytics = analytics
+
         # Auto hire/reject based on recommendation
         rec = report.get("recommendation", "").lower()
         if "strongly recommend" in rec or "recommend" in rec:
@@ -254,6 +273,8 @@ def submit_proctoring_telemetry(request, application_id):
         request.session["last_landmarks"] = None
         request.session["static_face_count"] = 0
         request.session["last_liveness_check"] = None
+        request.session["emotions_history"] = []
+        request.session["nervousness_history"] = []
 
     last_liveness_check = request.session.get("last_liveness_check")
     consecutive_mismatches = request.session.get("consecutive_mismatches", 0)
@@ -292,6 +313,16 @@ def submit_proctoring_telemetry(request, application_id):
             if should_check_liveness and application.candidate_image and os.path.exists(application.candidate_image.path):
                 if face_count == 1 and not is_looking_away_detected:
                     verify_res = analyze_expression_and_identity(application.candidate_image.path, img)
+                    
+                    # Track emotion and nervousness history in session
+                    emotions_history = request.session.get("emotions_history", [])
+                    emotions_history.append(verify_res.get("emotion", "neutral"))
+                    request.session["emotions_history"] = emotions_history
+                    
+                    nervousness_history = request.session.get("nervousness_history", [])
+                    nervousness_history.append(verify_res.get("nervousness_score", 0.0))
+                    request.session["nervousness_history"] = nervousness_history
+
                     if verify_res.get("verified", False):
                         request.session["consecutive_mismatches"] = 0
                         request.session["last_liveness_check"] = current_time
