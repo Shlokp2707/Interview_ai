@@ -26,6 +26,26 @@ def clean_llm_output(message):
 
 cleaner = RunnableLambda(clean_llm_output)
 
+def sanitize_score(val) -> float:
+    if val is None:
+        return 0.0
+    if isinstance(val, (int, float)):
+        score = float(val)
+    else:
+        try:
+            s = str(val).strip()
+            s = s.replace("%", "")
+            score = float(s)
+        except ValueError:
+            score = 0.0
+    
+    # Scale decimal ratios (e.g. 0.85 -> 85.0)
+    if 0.0 < score <= 1.0:
+        score *= 100.0
+        
+    return min(100.0, max(0.0, score))
+
+
 def safe_chain_invoke(llm, parser, prompt, fallback_factory):
     """
     Invokes the LLM and runs it through the cleaner and parser.
@@ -40,49 +60,81 @@ def safe_chain_invoke(llm, parser, prompt, fallback_factory):
         return fallback_factory()
 
     # 2. Try parsing with Pydantic parser
+    result = None
     try:
-        return parser.parse(raw_text)
+        result = parser.parse(raw_text)
     except Exception as parse_err:
         print(f"[SafeInvoke-ATS] Pydantic parser failed, attempting manual JSON parse: {parse_err}")
         
-    # 3. Try standard JSON parsing
-    try:
-        import json
-        clean_text = clean_llm_output(raw_text)
-        data = json.loads(clean_text)
-        pydantic_class = parser.pydantic_object
-        
-        # Build kwargs, falling back to defaults if missing or incorrect type
-        kwargs = {}
-        for name, field in pydantic_class.model_fields.items():
-            default = field.default if not field.is_required() else None
-            val = data.get(name, default)
-            kwargs[name] = val
+    # 3. Try standard JSON parsing if Pydantic parse failed
+    if result is None:
+        try:
+            import json
+            clean_text = clean_llm_output(raw_text)
+            data = json.loads(clean_text)
+            pydantic_class = parser.pydantic_object
             
-        return pydantic_class(**kwargs)
-    except Exception as fallback_err:
-        print(f"[SafeInvoke-ATS] Manual parsing failed: {fallback_err}")
-        return fallback_factory()
+            # Build kwargs, falling back to defaults if missing or incorrect type
+            kwargs = {}
+            for name, field in pydantic_class.model_fields.items():
+                # In case LLM used 'education_score' instead of 'qualification_score'
+                if name == "qualification_score" and "education_score" in data and "qualification_score" not in data:
+                    data["qualification_score"] = data["education_score"]
+                    
+                default = field.default if not field.is_required() else None
+                if default is None or default == ...:
+                    default = 0.0 if field.annotation in (float, int) else ""
+                    
+                val = data.get(name, default)
+                if val is None:
+                    val = default
+                    
+                if field.annotation == float:
+                    val = sanitize_score(val)
+                elif field.annotation == bool:
+                    val = str(val).lower() in ("true", "1", "yes", "t")
+                    
+                kwargs[name] = val
+                
+            result = pydantic_class(**kwargs)
+        except Exception as fallback_err:
+            print(f"[SafeInvoke-ATS] Manual parsing failed: {fallback_err}")
+            result = fallback_factory()
+
+    # Post-parse sanitization of float fields to ensure 0-100 scaling
+    if result and hasattr(result, "model_fields"):
+        for name, field in result.model_fields.items():
+            if field.annotation == float:
+                orig_val = getattr(result, name, None)
+                if orig_val is not None:
+                    setattr(result, name, sanitize_score(orig_val))
+                    
+    return result
 
 # ── LLM ──────────────────────────────────────────────────────
+_ats_llm = None
+
 def get_ats_llm():
-    api_key = getattr(settings, "GROQ_API_KEY", None) or os.getenv("GROQ_API_KEY")
-    return ChatGroq(
-        model="llama-3.3-70b-versatile",
-        api_key=api_key,
-        temperature=0.1
-    )
+    global _ats_llm
+    if _ats_llm is None:
+        api_key = getattr(settings, "GROQ_API_KEY", None) or os.getenv("GROQ_API_KEY")
+        _ats_llm = ChatGroq(
+            model="llama-3.3-70b-versatile",
+            api_key=api_key,
+            temperature=0.1
+        )
+    return _ats_llm
 
 
 # ── Schemas ───────────────────────────────────────────────────
 class get_ats_schema(BaseModel):
-    skill_score: float = Field(default=0, description="calculate skill_score")
-    experience_score: float = Field(default=0, description="calculate experience_score")
-    qualification_score: float = Field(default=0, description="calculate education_score")
-    achievement_score: float = Field(default=0, description="calculate achievement_score")
-    technology_and_tools_score: float = Field(default=0, description="calculate the technology_and_tools_score")
-    internship_score: float = Field(default=0, description="calculate internship_score")
-    soft_skill_score: float = Field(default=0, description="calculate softskill_score")
+    skill_score: float = Field(default=0.0, description="calculate skill_score")
+    experience_score: float = Field(default=0.0, description="calculate experience_score")
+    qualification_score: float = Field(default=0.0, description="calculate qualification_score")
+    achievement_score: float = Field(default=0.0, description="calculate achievement_score")
+    technology_and_tools_score: float = Field(default=0.0, description="calculate the technology_and_tools_score")
+    internship_score: float = Field(default=0.0, description="calculate internship_score")
+    soft_skill_score: float = Field(default=0.0, description="calculate softskill_score")
     has_strong_project: bool = Field(default=False, description="calculate has strong project score")
     feedback_summary: str = Field(default="", description="A 1-2 sentence feedback explaining the strengths and weaknesses found in the resume relative to the JD.")
 
@@ -116,6 +168,7 @@ class AtsState(TypedDict):
     internship_score: float
     soft_skill_score: float
     has_strong_project: bool
+    feedback_summary: str
 
 
 # ── Weights ───────────────────────────────────────────────────
@@ -202,7 +255,11 @@ def matching(state: AtsState) -> AtsState:
     Compare the Job Description (JD) with the candidate Resume and generate ATS scores and short feedback.
 
     resume: {mresume}
-    description:
+    
+    Job Description context:
+    raw_job_description: {state["desc"]}
+    
+    Extracted job requirements:
     skill: {state["skill"]}
     qualification: {state["qualification"]}
     soft_skill: {state["soft_skill"]}
@@ -225,7 +282,7 @@ def matching(state: AtsState) -> AtsState:
     SCORING & FEEDBACK:
     skill_score: semantic match between JD skills and resume skills.
     technology_and_tools_score: exact or equivalent match.
-    education_score: qualification match.
+    qualification_score: qualification/education match.
     experience_score: use only explicitly stated experience.
     soft_skill_score: explicit or strongly evidenced soft skills.
     achievement_score: awards, hackathons, certifications, publications.
@@ -278,31 +335,28 @@ def build_ats_graph():
     graph.add_edge("matching", END)
     return graph.compile()
 
+
+# Compile graph once at the module level to optimize performance
+ATS_GRAPH = build_ats_graph()
+
+
 def safe_score(value):
     return 0 if value is None else value
+
+
 # ── Final weighted score ──────────────────────────────────────
 def calculate_final_ats_score(final_state: dict) -> float:
     w = ATS_WEIGHTS
-    # score = (
-    #     final_state["skill_score"]                * w["skill"]
-    #     + final_state["experience_score"]         * w["experience"]
-    #     + final_state["qualification_score"]      * w["qualification"]
-    #     + final_state["achievement_score"]        * w["achievement"]
-    #     + final_state["internship_score"]         * w["internship"]
-    #     + final_state["soft_skill_score"]         * w["soft_skill"]
-    #     + (100 if final_state["has_strong_project"] else 0) * w["has_strong_project"]
-    #     + final_state["technology_and_tools_score"] * w["technology_and_tools"]
-    # )
     score = (
-    safe_score(final_state["skill_score"]) * w["skill"]
-    + safe_score(final_state["experience_score"]) * w["experience"]
-    + safe_score(final_state["qualification_score"]) * w["qualification"]
-    + safe_score(final_state["achievement_score"]) * w["achievement"]
-    + safe_score(final_state["internship_score"]) * w["internship"]
-    + safe_score(final_state["soft_skill_score"]) * w["soft_skill"]
-    + (100 if final_state["has_strong_project"] else 0) * w["has_strong_project"]
-    + safe_score(final_state["technology_and_tools_score"]) * w["technology_and_tools"]
-)
+        safe_score(final_state["skill_score"]) * w["skill"]
+        + safe_score(final_state["experience_score"]) * w["experience"]
+        + safe_score(final_state["qualification_score"]) * w["qualification"]
+        + safe_score(final_state["achievement_score"]) * w["achievement"]
+        + safe_score(final_state["internship_score"]) * w["internship"]
+        + safe_score(final_state["soft_skill_score"]) * w["soft_skill"]
+        + (100 if final_state["has_strong_project"] else 0) * w["has_strong_project"]
+        + safe_score(final_state["technology_and_tools_score"]) * w["technology_and_tools"]
+    )
     return round(score, 2)
 
 
@@ -316,9 +370,8 @@ def run_ats_scoring(resume_text: str, job_description: str) -> dict:
             "passed": bool
         }
     """
-    ats_app = build_ats_graph()
     initial_state = {"desc": job_description, "resume": resume_text}
-    final_state = ats_app.invoke(initial_state)
+    final_state = ATS_GRAPH.invoke(initial_state)
     final_score = calculate_final_ats_score(final_state)
     print(final_score)
     print(final_state)
