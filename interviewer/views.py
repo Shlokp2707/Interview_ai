@@ -256,8 +256,13 @@ def submit_proctoring_telemetry(request, application_id):
         request.session["last_liveness_check"] = None
 
     last_liveness_check = request.session.get("last_liveness_check")
-    # Check liveness immediately at start (last_liveness_check is None) and then every 120 seconds (2 minutes)
-    should_check_liveness = (last_liveness_check is None) or (current_time - last_liveness_check >= 120.0)
+    consecutive_mismatches = request.session.get("consecutive_mismatches", 0)
+    # Check liveness immediately at start (last_liveness_check is None).
+    # If a mismatch has occurred, retry every 5.0 seconds. Otherwise, check normally every 120.0 seconds (2 minutes).
+    if consecutive_mismatches > 0:
+        should_check_liveness = (last_liveness_check is None) or (current_time - last_liveness_check >= 5.0)
+    else:
+        should_check_liveness = (last_liveness_check is None) or (current_time - last_liveness_check >= 120.0)
 
     is_currently_looking_away = False
     face_count = 0
@@ -282,25 +287,31 @@ def submit_proctoring_telemetry(request, application_id):
             elif pose_res.get("looking_away", False):
                 is_currently_looking_away = True
                 
-            # Identity Verification check (if profile image exists) - throttled to run every 2 minutes
-            # Skip verification if the candidate is looking away to prevent false mismatch alarms from profile views
+            # Identity Verification check (if profile image exists) - throttled to run every 2 minutes (retry every 5 seconds on mismatch)
             is_looking_away_detected = is_currently_looking_away or client_warnings.get("looking_away", False)
-            if (should_check_liveness and face_count == 1 and not is_looking_away_detected 
-                and application.candidate_image and os.path.exists(application.candidate_image.path)):
-                verify_res = analyze_expression_and_identity(application.candidate_image.path, img)
-                if not verify_res.get("verified", True):
-                    consecutive_mismatches = request.session.get("consecutive_mismatches", 0) + 1
-                    request.session["consecutive_mismatches"] = consecutive_mismatches
-                    # If mismatch detected, bypass throttling for the next check to re-verify in 10 seconds
-                    request.session["last_liveness_check"] = current_time - 110.0
-                    # Warn only if candidate fails 3 consecutive checks to prevent lighting false alarms
-                    if consecutive_mismatches >= 3:
-                        warnings_triggered.append("Face mismatch / Identity verification failed")
+            if should_check_liveness and application.candidate_image and os.path.exists(application.candidate_image.path):
+                if face_count == 1 and not is_looking_away_detected:
+                    verify_res = analyze_expression_and_identity(application.candidate_image.path, img)
+                    if verify_res.get("verified", False):
                         request.session["consecutive_mismatches"] = 0
                         request.session["last_liveness_check"] = current_time
+                    else:
+                        consecutive_mismatches = request.session.get("consecutive_mismatches", 0) + 1
+                        request.session["consecutive_mismatches"] = consecutive_mismatches
+                        request.session["last_liveness_check"] = current_time
+                        if consecutive_mismatches >= 3:
+                            warnings_triggered.append("Face mismatch / Identity verification failed")
+                            request.session["consecutive_mismatches"] = 0
                 else:
-                    request.session["consecutive_mismatches"] = 0
-                    request.session["last_liveness_check"] = current_time
+                    # If in a mismatch retry loop, count "not found" or "looking away" as verification failure
+                    current_mismatches = request.session.get("consecutive_mismatches", 0)
+                    if current_mismatches > 0:
+                        consecutive_mismatches = current_mismatches + 1
+                        request.session["consecutive_mismatches"] = consecutive_mismatches
+                        request.session["last_liveness_check"] = current_time
+                        if consecutive_mismatches >= 3:
+                            warnings_triggered.append("Face mismatch / Identity verification failed")
+                            request.session["consecutive_mismatches"] = 0
         else:
             face_count = 0
 
