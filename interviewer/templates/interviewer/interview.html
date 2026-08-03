@@ -2,14 +2,14 @@
 {% block title %}AI Interview — HireAI{% endblock %}
 {% block content %}
   <!-- Fullscreen Warning Overlay -->
-  <div id="fullscreen-warning-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(10, 11, 16, 0.98); z-index: 99999; display: none; flex-direction: column; justify-content: center; align-items: center; text-align: center; backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); font-family: 'Outfit', sans-serif;">
+  <div id="fullscreen-warning-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(10, 11, 16, 0.98); z-index: 99999; {% if application.is_verified and rules_accepted %}display: flex;{% else %}display: none;{% endif %} flex-direction: column; justify-content: center; align-items: center; text-align: center; backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); font-family: 'Outfit', sans-serif;">
     <div style="font-size: 4rem; margin-bottom: 1.5rem; animation: pulse 2s infinite;">🖥️</div>
     <h2 style="color: var(--danger); font-size: 1.8rem; margin-bottom: 0.75rem;">Fullscreen Mode Required</h2>
     <p style="color: var(--muted); font-size: 1rem; max-width: 500px; line-height: 1.6; margin-bottom: 2rem; padding: 0 1.5rem;">
-      To continue the interview, you must keep the window in fullscreen mode. Exiting fullscreen is logged as a security violation.
+      To start or continue the interview, you must keep the window in fullscreen mode. Exiting fullscreen is logged as a security violation.
     </p>
     <button class="btn btn-primary" onclick="enterFullscreenAndResume()" style="padding: 0.85rem 2.5rem; font-size: 1.05rem;">
-      Resume Fullscreen &rarr;
+      Enter Fullscreen &rarr;
     </button>
   </div>
 
@@ -89,6 +89,7 @@
           <li><strong style="color: var(--text);">Multiple Faces:</strong> If another person's face appears in the frame (strictly <span style="color: var(--warn); font-weight: 600;">no two persons</span> on screen).</li>
           <li><strong style="color: var(--text);">Photo/Spoofing Check:</strong> A real candidate must be present. Holding a static photograph or phone screen to the camera will fail liveness checks.</li>
           <li><strong style="color: var(--text);">High Noise Activity:</strong> High audio levels or external voices while not answering questions will trigger alerts.</li>
+          <li><strong style="color: var(--text);">Tab Switching:</strong> Switching browser tabs, minimizing the window, or unfocusing/navigating away from the interview page.</li>
         </ul>
       </div>
 
@@ -277,7 +278,7 @@
              </div>
              <div style="display: flex; justify-content: space-between;">
                 <span>Security Warnings:</span>
-                <span id="proctor-warnings-display" style="font-weight: 600; color: var(--text);">0 / 5</span>
+                <span id="proctor-warnings-display" style="font-weight: 600; {% if application.security_warnings > 0 %}color: #ef4444;{% else %}color: var(--text);{% endif %}">{{ application.security_warnings }} / 5</span>
              </div>
           </div>
        </div>
@@ -929,6 +930,16 @@ const INITIAL_SECURITY_LOG = {{ application.security_log|safe|default:"[]" }};
 
 let flagTabSwitching = false;
 let flagFullscreenExit = false;
+let localWarningsCount = {{ application.security_warnings }};
+
+function incrementLocalWarningsCount() {
+  localWarningsCount++;
+  const warningsDisplay = document.getElementById("proctor-warnings-display");
+  if (warningsDisplay) {
+    warningsDisplay.textContent = `${localWarningsCount} / 5`;
+    warningsDisplay.style.color = "#ef4444";
+  }
+}
 let highNoiseStart = null;
 let isHighNoiseActive = false;
 
@@ -941,9 +952,25 @@ function monitorFullscreenStatus() {
   }
 }
 
+let isInterviewStarted = false;
+
+function startInterviewSession() {
+  if (isInterviewStarted) return;
+  isInterviewStarted = true;
+
+  connectWebSocket();
+  startProctoring();
+
+  const initialQ = document.getElementById("question-text");
+  if (initialQ && initialQ.textContent.trim()) {
+    speakQuestion(initialQ.textContent.trim());
+  }
+}
+
 function enterFullscreenAndResume() {
   document.documentElement.requestFullscreen().then(() => {
     monitorFullscreenStatus();
+    startInterviewSession();
   }).catch(err => {
     console.error("Fullscreen request failed:", err);
   });
@@ -956,14 +983,22 @@ if (IS_VERIFIED && RULES_ACCEPTED) {
     if (!document.fullscreenElement) {
       flagFullscreenExit = true;
       showProctorWarning("Security Alert: Fullscreen mode exited!");
+      incrementLocalWarningsCount();
     }
   });
 
   // Tab switching detection
+  let hasLeftTab = false;
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
-      flagTabSwitching = true;
-      showProctorWarning("Security Alert: Tab switching detected!");
+      hasLeftTab = true;
+    } else {
+      if (hasLeftTab) {
+        flagTabSwitching = true;
+        showProctorWarning("Security Alert: Tab switching detected!");
+        hasLeftTab = false;
+        incrementLocalWarningsCount();
+      }
     }
   });
 
@@ -1108,6 +1143,12 @@ async function runProctoringCheck() {
   // Use continuously monitored ambient noise flag (requires continuous volume > 45 for >= 2.5 seconds)
   let ambientNoise = isHighNoiseActive;
 
+  // Capture warning flags locally and reset them immediately to prevent duplicate sends on network overlap/failure
+  let sendTabSwitching = flagTabSwitching;
+  let sendFullscreenExit = flagFullscreenExit;
+  flagTabSwitching = false;
+  flagFullscreenExit = false;
+
   try {
     const response = await fetch("{% url 'submit_proctoring' application.id %}", {
       method: "POST",
@@ -1119,22 +1160,19 @@ async function runProctoringCheck() {
         image: dataUrl,
         warnings: {
           ambient_noise: ambientNoise,
-          tab_switching: flagTabSwitching,
-          fullscreen_exit: flagFullscreenExit
+          tab_switching: sendTabSwitching,
+          fullscreen_exit: sendFullscreenExit
         }
       })
     });
 
     const result = await response.json();
     if (result.success) {
-      // Reset flags since they have been successfully logged
-      flagTabSwitching = false;
-      flagFullscreenExit = false;
-
       // Update Live Warning History List
       updateLiveViolationsList(result.security_log);
 
       // 1. Update Warnings display in Sidebar
+      localWarningsCount = result.warnings_count;
       const warningsDisplay = document.getElementById("proctor-warnings-display");
       if (warningsDisplay) {
         warningsDisplay.textContent = `${result.warnings_count} / 5`;
@@ -1246,13 +1284,9 @@ function handleDisqualification(log) {
 // ── Page load ──────────────────────────────────────────────────
 window.addEventListener("load", () => {
   if (IS_VERIFIED && RULES_ACCEPTED) {
-    connectWebSocket();
-    startProctoring();
-    setTimeout(monitorFullscreenStatus, 1000);
-
-    const initialQ = document.getElementById("question-text");
-    if (initialQ && initialQ.textContent.trim()) {
-      speakQuestion(initialQ.textContent.trim());
+    monitorFullscreenStatus();
+    if (document.fullscreenElement) {
+      startInterviewSession();
     }
   } else if (!IS_VERIFIED) {
     startWebcam();

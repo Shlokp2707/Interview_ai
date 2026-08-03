@@ -260,10 +260,10 @@ def estimate_head_pose(img):
                 yaw = float(yaw)
 
                 # Define specific angle limits for looking away:
-                # - Yaw (left/right): 35.0 degrees
+                # - Yaw (left/right): 30.0 degrees (reduced from 35.0 by 5 degrees)
                 # - Pitch Down (looking down): > 35.0 degrees (increased to match the looking up threshold)
                 # - Pitch Up (looking up): < -35.0 degrees (relaxed to allow normal movement up to 35 degrees)
-                looking_away = abs(yaw) > 35.0 or pitch > 35.0 or pitch < -35.0
+                looking_away = abs(yaw) > 30.0 or pitch > 35.0 or pitch < -35.0
 
                 return {
                     "face_detected": True,
