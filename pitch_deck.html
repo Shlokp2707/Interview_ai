@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Autonomous AI Interviewer — Investor Pitch Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #070913;
+      --bg-card: rgba(18, 22, 41, 0.75);
+      --bg-card-border: rgba(255, 255, 255, 0.08);
+      --accent-purple: #7c3aed;
+      --accent-blue: #3b82f6;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --gradient-primary: linear-gradient(135deg, #7c3aed 0%, #3b82f6 50%, #06b6d4 100%);
+      --shadow-glow: 0 0 50px rgba(124, 58, 237, 0.25);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    .deck-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .top-bar {
+      height: 60px;
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--bg-card-border);
+      background: rgba(7, 9, 19, 0.85);
+      backdrop-filter: blur(12px);
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 1.2rem;
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-badge {
+      background: rgba(124, 58, 237, 0.2);
+      border: 1px solid rgba(124, 58, 237, 0.4);
+      color: #a78bfa;
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 600;
+      -webkit-text-fill-color: #a78bfa;
+    }
+
+    .slide-progress {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .dot.active {
+      width: 24px;
+      border-radius: 10px;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 10px var(--accent-cyan);
+    }
+
+    .slides-wrapper {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      padding: 2.5rem 4rem;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.96) translateY(20px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+
+    .slide.active {
+      opacity: 1;
+      pointer-events: all;
+      transform: scale(1) translateY(0);
+    }
+
+    .slide-header {
+      margin-bottom: 1.5rem;
+    }
+
+    .slide-tag {
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--accent-cyan);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .slide-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.4rem;
+      font-weight: 700;
+      line-height: 1.2;
+      color: #ffffff;
+    }
+
+    .slide-subtitle {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+      margin-top: 4px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.8rem;
+      flex: 1;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      flex: 1;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.2rem;
+      flex: 1;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.3s ease, border-color 0.3s ease;
+    }
+
+    .card:hover {
+      border-color: rgba(124, 58, 237, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .card-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .card-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 0.5rem;
+    }
+
+    .card-text {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .stat-number {
+      font-family: 'Outfit', sans-serif;
+      font-size: 3rem;
+      font-weight: 800;
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1;
+      margin-bottom: 0.4rem;
+    }
+
+    .stat-label {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .flow-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      background: rgba(15, 20, 38, 0.6);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 20px;
+      padding: 1.5rem;
+      margin-top: 0.5rem;
+    }
+
+    .flow-step {
+      flex: 1;
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 14px;
+      padding: 1.2rem;
+      text-align: center;
+      position: relative;
+    }
+
+    .flow-step.highlight {
+      border-color: var(--accent-purple);
+      box-shadow: var(--shadow-glow);
+    }
+
+    .flow-arrow {
+      color: var(--accent-cyan);
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+
+    .badge-pill {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(6, 182, 212, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      margin-bottom: 0.5rem;
+    }
+
+    .feature-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      margin-top: 0.8rem;
+    }
+
+    .feature-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.9rem;
+      color: #e2e8f0;
+    }
+
+    .check-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--accent-emerald);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: bold;
+    }
+
+    .bottom-bar {
+      height: 70px;
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--bg-card-border);
+      background: rgba(7, 9, 19, 0.9);
+      backdrop-filter: blur(12px);
+      z-index: 50;
+    }
+
+    .btn {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      color: #fff;
+      padding: 8px 18px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-primary {
+      background: var(--gradient-primary);
+      border: none;
+      box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4);
+    }
+
+    .btn-primary:hover {
+      opacity: 0.9;
+      box-shadow: 0 6px 20px rgba(124, 58, 237, 0.6);
+    }
+
+    .key-hint {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .comp-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+
+    .comp-table th, .comp-table td {
+      padding: 0.8rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--bg-card-border);
+      font-size: 0.9rem;
+    }
+
+    .comp-table th {
+      color: var(--accent-cyan);
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .comp-table td.highlight-col {
+      background: rgba(124, 58, 237, 0.1);
+      font-weight: 700;
+      color: #fff;
+      border-left: 1px solid rgba(124, 58, 237, 0.3);
+      border-right: 1px solid rgba(124, 58, 237, 0.3);
+    }
+
+    .speaker-notes-panel {
+      position: absolute;
+      bottom: 75px;
+      right: 2rem;
+      width: 380px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid var(--accent-purple);
+      border-radius: 12px;
+      padding: 1.2rem;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+      z-index: 100;
+      display: none;
+    }
+
+    .speaker-notes-panel.open {
+      display: block;
+    }
+
+    .notes-header {
+      font-weight: 700;
+      color: var(--accent-cyan);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="deck-container">
+    <!-- Top Bar -->
+    <header class="top-bar">
+      <div class="brand">
+        <span>⚡ HireAI Platform</span>
+        <span class="brand-badge">INVESTOR PITCH</span>
+      </div>
+      <div class="slide-progress" id="dotContainer"></div>
+      <div style="font-size: 0.85rem; color: var(--text-muted);">
+        Slide <span id="currentSlideNum">1</span> of <span id="totalSlideNum">12</span>
+      </div>
+    </header>
+
+    <!-- Slides Wrapper -->
+    <main class="slides-wrapper">
+
+      <!-- SLIDE 1: Title & Vision -->
+      <section class="slide active">
+        <div class="slide-header">
+          <div class="slide-tag">🚀 Autonomous Talent Platform</div>
+          <div class="slide-title">The Future of AI-Powered Technical Hiring</div>
+          <div class="slide-subtitle">Autonomous Conversational Interviews, Multi-Modal Proctoring & Candidate Intelligence</div>
+        </div>
+        <div class="grid-2">
+          <div class="card" style="justify-content: center; background: radial-gradient(circle at top left, rgba(124, 58, 237, 0.2), transparent);">
+            <span class="badge-pill">NEXT-GEN TALENT TECH</span>
+            <h2 style="font-size: 2.2rem; font-family: Outfit; font-weight: 800; margin: 1rem 0;">Reinventing Screening from Application to Offer</h2>
+            <p class="card-text" style="font-size: 1.1rem; line-height: 1.6;">
+              Replacing manual resume screening & fraud-prone remote calls with a 24/7 sub-second AI Voice Interviewer, edge-based proctoring security, and automated candidate up-skilling.
+            </p>
+          </div>
+          <div class="grid-2" style="grid-template-columns: 1fr 1fr;">
+            <div class="card">
+              <div class="stat-number">90%</div>
+              <div class="stat-label">Reduction in Recruiter Screening Time</div>
+            </div>
+            <div class="card">
+              <div class="stat-number">100%</div>
+              <div class="stat-label">Real-Time Proxy & Anti-Cheating Detection</div>
+            </div>
+            <div class="card">
+              <div class="stat-number">&lt; 1s</div>
+              <div class="stat-label">Sub-Second WebSocket Audio Latency</div>
+            </div>
+            <div class="card">
+              <div class="stat-number">$10k+</div>
+              <div class="stat-label">Cost Saved Per Technical Hire</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 2: The Problem -->
+      <section class="slide">
+        <div class="slide-header">
+          <div class="slide-tag" style="color: var(--accent-rose);">⚠️ Market Pain Points</div>
+          <div class="slide-title">Traditional Technical Hiring is Broken</div>
+          <div class="slide-subtitle">Recruiters are overwhelmed by volume, while interviews are plagued by fraud and bad candidate experience.</div>
+        </div>
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-icon" style="color: var(--accent-rose);">⏳</div>
+            <div class="card-title">Resume Noise & Fatigue</div>
+            <p class="card-text">HR teams waste 25+ hours per opening manually reviewing keyword-stuffed resumes. Traditional ATS software filters out top hidden talent arbitrarily.</p>
+          </div>
+          <div class="card">
+            <div class="card-icon" style="color: var(--accent-amber);">🚨</div>
+            <div class="card-title">Rampant Proxy & AI Fraud</div>
+            <p class="card-text">68% of remote technical interviews experience cheating — candidates use deepfake voice synthesis, dual monitors, and hidden ChatGPT assistants.</p>
+          </div>
+          <div class="card">
+            <div class="card-icon" style="color: var(--accent-blue);">💔</div>
+            <div class="card-title">Zero Candidate Value</div>
+            <p class="card-text">Rejected candidates get generic automated decline emails with zero actionable feedback, damaging employer brand and wasting candidate effort.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 3: Proposed Solution -->
+      <section class="slide">
+        <div class="slide-header">
+          <div class="slide-tag">✨ The Solution</div>
+          <div class="slide-title">Unified Autonomous Hiring & Growth Engine</div>
+          <div class="slide-subtitle">A seamless 4-stage pipeline connecting resume intelligence, voice interviews, proctoring, and growth.</div>
+        </div>
+        <div class="flow-container">
+          <div class="flow-step">
+            <div class="badge-pill">STEP 1</div>
+            <h4 style="color:#fff; margin: 4px 0;">ATS Resume Parser</h4>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">Instant score match & interactive resume chatbot</p>
+          </div>
+          <div class="flow-arrow">➔</div>
+          <div class="flow-step highlight">
+            <div class="badge-pill" style="background: rgba(124,58,237,0.3); color:#a78bfa;">STEP 2</div>
+            <h4 style="color:#fff; margin: 4px 0;">Adaptive AI Interview</h4>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">Real-time bidirectional voice & video conversation</p>
+          </div>
+          <div class="flow-arrow">➔</div>
+          <div class="flow-step">
+            <div class="badge-pill">STEP 3</div>
+            <h4 style="color:#fff; margin: 4px 0;">Proctor Guard</h4>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">MediaPipe Face/Hand mesh & voice anti-spoofing</p>
+          </div>
+          <div class="flow-arrow">➔</div>
+          <div class="flow-step">
+            <div class="badge-pill">STEP 4</div>
+            <h4 style="color:#fff; margin: 4px 0;">HR & Growth Output</h4>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">Recruiter leaderboard & candidate learning roadmap</p>
+          </div>
+        </div>
+        <div class="grid-2" style="margin-top: 1.5rem;">
+          <div class="card">
+            <div class="card-title">For HR & Recruiters</div>
+            <ul class="feature-list">
+              <li class="feature-item"><span class="check-icon">✓</span> Automated candidate ranking leaderboard</li>
+              <li class="feature-item"><span class="check-icon">✓</span> Integrity verification score (gaze, hands, voice spoof risk)</li>
+              <li class="feature-item"><span class="check-icon">✓</span> Conversational search across candidate resumes</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-title">For Candidates</div>
+            <ul class="feature-list">
+              <li class="feature-item"><span class="check-icon">✓</span> 24/7 instant on-demand voice interviews</li>
+              <li class="feature-item"><span class="check-icon">✓</span> Post-interview AI Growth Agent with curated study links</li>
+              <li class="feature-item"><span class="check-icon">✓</span> Interactive practice studio for mock interview prep</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 4: Feature 1 - ATS & Resume Chatbot -->
+      <section class="slide">
+        <div class="slide-header">
+          <div class="slide-tag">📄 Feature 01</div>
+          <div class="slide-title">Smart ATS & Conversational Resume AI</div>
+          <div class="slide-subtitle">Deep semantic parsing of unstructured resumes paired with a real-time recruiter chatbot.</div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <span class="badge-pill">AUTOMATED ALIGNMENT</span>
+            <div class="card-title">ATS Resume Match Engine</div>
+            <p class="card-text" style="margin-bottom: 1rem;">Parses PDF/Word resumes against target Job Descriptions (JD) to extract precise skill overlap, missing qualifications, and experience depth.</p>
+            <div style="background: rgba(0,0,0,0.4); padding: 1rem; border-radius: 10px; border: 1px solid var(--bg-card-border);">
+              <div style="display:flex; justify-content:space-between; font-size: 0.85rem; margin-bottom: 4px;">
+                <span>Python & Django Experience</span>
+                <span style="color:var(--accent-emerald)">95% Match</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; font-size: 0.85rem; margin-bottom: 4px;">
+                <span>Kubernetes & DevOps</span>
+                <span style="color:var(--accent-amber)">60% (Gap Identified)</span>
+              </div>
+            </div>
+          </div>
+          <div class="card" style="border-color: rgba(6, 182, 212, 0.4);">
+            <span class="badge-pill">RECRUITER COPILOT</span>
+            <div class="card-title">Interactive Resume Chatbot</div>
+            <p class="card-text">Recruiters don't read 10-page CVs — they ask questions directly to the candidate's parsed resume persona.</p>
+            <div style="margin-top: 1rem; font-size: 0.85rem; display: flex; flex-direction: column; gap: 8px;">
+              <div style="background: rgba(124,58,237,0.2); padding: 8px 12px; border-radius: 8px; align-self: flex-end;">
+                💬 Recruiter: "Does Sarah have hands-on experience with WebSocket streaming?"
+              </div>
+              <div style="background: rgba(255,255,255,0.05); padding: 8px 12px; border-radius: 8px; align-self: flex-start; border: 1px solid var(--bg-card-border);">
+                🤖 AI Copilot: "Yes! At FinTech Corp, she built a real-time WebSocket audio streamer handling 10k concurrent channels."
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 5: Feature 2 - Adaptive AI Interviewer -->
+      <section class="slide">
+        <div class="slide-header">
+          <div class="slide-tag">🎙️ Feature 02</div>
+          <div class="slide-title">Real-Time Adaptive AI Voice & Video Interviewer</div>
+          <div class="slide-subtitle">Sub-second latency bidirectional audio conversation with dynamic difficulty adjustment.</div>
+        </div>
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-icon" style="color: var(--accent-cyan);">⚡</div>
+            <div class="card-title">Sub-Second Audio WebSockets</div>
+            <p class="card-text">Streaming speech-to-text (STT) and voice synthesis (TTS) over Django Channels WebSockets for fluid human-like conversational pace.</p>
+          </div>
+          <div class="card">
+            <div class="card-icon" style="color: var(--accent-purple);">🧠</div>
+            <div class="card-title">Adaptive Difficulty Scaling</div>
+            <p class="card-text">The AI interviewer dynamically calibrates question depth in real time based on candidate performance, probing deeper into weak spots.</p>
+          </div>
+          <div class="card">
+            <div class="card-icon" style="color: var(--accent-emerald);">🎯</div>
+            <div class="card-title">Multi-Dimensional Scoring</div>
+            <p class="card-text">Evaluates response accuracy, architectural thinking, problem-solving methodology, and verbal communication clarity automatically.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 6: Feature 3 - Multi-Modal Proctoring -->
+      <section class="slide">
+        <div class="slide-header">
+          <div class="slide-tag" style="color: var(--accent-rose);">🛡️ Feature 03</div>
+          <div class="slide-title">Multi-Modal AI Security & Audio Anti-Spoofing</div>
+          <div class="slide-subtitle">Uncompromising remote interview integrity powered by client-side edge vision & voice signal AI.</div>
+        </div>
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-icon" style="color: var(--accent-rose);">👁️</div>
+            <div class="card-title">Face & Gaze Landmarker</div>
+            <p class="card-text">Client-side MediaPipe Mesh tracks head posture, gaze direction, off-screen viewing, and alerts on extra faces in frame.</p>
+          </div>
+          <div class="card">
+            <div class="card-icon" style="color: var(--accent-amber);">📱</div>
+            <div class="card-title">Hand & Device Detection</div>
+            <p class="card-text">Real-time hand keypoint monitoring detects unauthorized phone usage, hidden smart devices, or secondary typing hardware.</p>
+          </div>
+          <div class="card">
+            <div class="card-icon" style="color: var(--accent-purple);">🔊</div>
+            <div class="card-title">Voice Anti-Spoofing AI</div>
+            <p class="card-text">Proprietary audio model analyzes voice frequency metrics to detect synthetic voice cloners, deepfake audio, and playback cheating.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 7: Feature 4 - HR Dashboard & Growth Agent -->
+      <section class="slide">
+        <div class="slide-header">
+          <div class="slide-tag">📊 Feature 04</div>
+          <div class="slide-title">Enterprise HR Dashboard & Candidate Growth Agent</div>
+          <div class="slide-subtitle">Data-driven recruiter decision making paired with continuous candidate career elevation.</div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <span class="badge-pill">RECRUITER INSIGHTS</span>
+            <div class="card-title">Candidate Leaderboard & Analytics</div>
+            <ul class="feature-list">
+              <li class="feature-item"><span class="check-icon">1</span> <strong>Alex Rivers</strong> — 94% Match (Integrity: 100% CLEAN)</li>
+              <li class="feature-item"><span class="check-icon">2</span> <strong>David Kim</strong> — 88% Match (Integrity: 100% CLEAN)</li>
+              <li class="feature-item"><span class="check-icon" style="background:rgba(244,63,94,0.2); color:var(--accent-rose)">3</span> <strong>Proxy Bot User</strong> — 45% Match (FLAGGED: Voice Spoof)</li>
+            </ul>
+          </div>
+          <div class="card" style="border-color: rgba(16, 185, 129, 0.4);">
+            <span class="badge-pill" style="background: rgba(16,185,129,0.15); color: var(--accent-emerald);">POST-INTERVIEW FEEDBACK</span>
+            <div class="card-title">AI Growth Agent for Candidates</div>
+            <p class="card-text">Instead of ghosting candidates, the AI Growth Agent generates a customized learning roadmap immediately after the interview.</p>
+            <div style="background: rgba(0,0,0,0.3); padding: 0.8rem; border-radius: 8px; margin-top: 0.8rem; font-size: 0.85rem;">
+              <strong style="color: var(--accent-emerald);">Target Weakness Identified:</strong> Async IO concurrency locks<br>
+              <span style="color: var(--accent-cyan); text-decoration: underline;">📄 Python Docs: Official asyncio Synchronization Guide</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 8: Technical Feasibility -->
+      <section class="slide">
+        <div class="slide-header">
+          <div class="slide-tag">⚙️ Technical Feasibility</div>
+          <div class="slide-title">Scalable High-Performance System Architecture</div>
+          <div class="slide-subtitle">Leveraging Wasm edge computing and asynchronous Python WebSockets for massive scale.</div>
+        </div>
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-title">Frontend Edge Computation</div>
+            <p class="card-text">React SPA + MediaPipe WebAssembly runs vision proctoring models directly inside candidate browser, eliminating server GPU rendering costs.</p>
+          </div>
+          <div class="card">
+            <div class="card-title">Async Concurrency Backend</div>
+            <p class="card-text">Django Channels ASGI + Redis channel layer handles tens of thousands of simultaneous low-latency voice WebSocket connections.</p>
+          </div>
+          <div class="card">
+            <div class="card-title">Resilient Multi-LLM Orchestration</div>
+            <p class="card-text">Fail-safe fallback model pipeline routing between Gemini 1.5 Flash and Groq Llama-3.3-70B ensuring 99.9% interview availability.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 9: Market Viability & Monetization -->
+      <section class="slide">
+        <div class="slide-header">
+          <div class="slide-tag" style="color: var(--accent-emerald);">💰 Market Viability</div>
+          <div class="slide-title">Massive TAM & SaaS Monetization Strategy</div>
+          <div class="slide-subtitle">Dual revenue streams targeting both enterprise hiring managers and career candidates.</div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">Market Opportunity</div>
+            <div style="margin: 1rem 0;">
+              <div class="stat-number" style="font-size: 2.2rem;">$32.5 Billion</div>
+              <div class="stat-label">Global HR Tech & Automated Recruitment TAM</div>
+            </div>
+            <p class="card-text">Targeting high-growth tech enterprises, hiring agencies, and educational bootcamps seeking automated candidate evaluation.</p>
+          </div>
+          <div class="card">
+            <div class="card-title">Subscription Pricing Tiers</div>
+            <div style="display: flex; flex-direction: column; gap: 0.8rem; margin-top: 0.8rem;">
+              <div style="background: rgba(255,255,255,0.05); padding: 0.8rem; border-radius: 8px; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                  <strong>Enterprise HR Starter</strong><br>
+                  <span style="font-size:0.8rem; color:var(--text-muted);">50 Interviews / mo + Standard Proctoring</span>
+                </div>
+                <strong style="color: var(--accent-cyan);">$299 / mo</strong>
+              </div>
+              <div style="background: rgba(124,58,237,0.2); padding: 0.8rem; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; border: 1px solid var(--accent-purple);">
+                <div>
+                  <strong>Growth Plan</strong><br>
+                  <span style="font-size:0.8rem; color:var(--text-muted);">250 Interviews / mo + Voice Anti-Spoofing</span>
+                </div>
+                <strong style="color: #a78bfa;">$799 / mo</strong>
+              </div>
+              <div style="background: rgba(255,255,255,0.05); padding: 0.8rem; border-radius: 8px; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                  <strong>Candidate Practice Pro Pass</strong><br>
+                  <span style="font-size:0.8rem; color:var(--text-muted);">Unlimited Mock Interviews + AI Growth Agent</span>
+                </div>
+                <strong style="color: var(--accent-emerald);">$19 / mo</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 10: Unit Economics & Financial Growth -->
+      <section class="slide">
+        <div class="slide-header">
+          <div class="slide-tag">📈 Unit Economics</div>
+          <div class="slide-title">High-Margin Scalability & Financial Forecast</div>
+          <div class="slide-subtitle">Industry-leading LTV / CAC metrics driven by low edge-compute infrastructure overhead.</div>
+        </div>
+        <div class="grid-4">
+          <div class="card">
+            <div class="stat-number">84%</div>
+            <div class="stat-label">Gross Margin</div>
+            <p class="card-text" style="font-size: 0.8rem; margin-top: 0.5rem;">Due to browser Wasm edge proctoring</p>
+          </div>
+          <div class="card">
+            <div class="stat-number">$18.2k</div>
+            <div class="stat-label">B2B Annual LTV</div>
+            <p class="card-text" style="font-size: 0.8rem; margin-top: 0.5rem;">Average enterprise contract value</p>
+          </div>
+          <div class="card">
+            <div class="stat-number">7.5x</div>
+            <div class="stat-label">LTV / CAC Ratio</div>
+            <p class="card-text" style="font-size: 0.8rem; margin-top: 0.5rem;">Well above 3x SaaS benchmark</p>
+          </div>
+          <div class="card">
+            <div class="stat-number">$2.8M</div>
+            <div class="stat-label">Year 2 ARR Projection</div>
+            <p class="card-text" style="font-size: 0.8rem; margin-top: 0.5rem;">Based on 210 enterprise contracts</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 11: Competitive Advantage -->
+      <section class="slide">
+        <div class="slide-header">
+          <div class="slide-tag">🏆 Competitive Moat</div>
+          <div class="slide-title">Unfair Advantage vs Incumbents</div>
+          <div class="slide-subtitle">Why traditional ATS and static video interview tools cannot compete.</div>
+        </div>
+        <table class="comp-table">
+          <thead>
+            <tr>
+              <th>Feature Capability</th>
+              <th>Traditional ATS (Greenhouse)</th>
+              <th>Legacy Video (HireVue)</th>
+              <th class="highlight-col">⚡ Our HireAI Platform</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Real-Time Conversational AI Voice</td>
+              <td>❌ Static Text</td>
+              <td>❌ One-way Async Video</td>
+              <td class="highlight-col">✅ Sub-second Live Voice</td>
+            </tr>
+            <tr>
+              <td>Edge Multi-Modal Proctoring</td>
+              <td>❌ None</td>
+              <td>⚠️ Basic Screen Record</td>
+              <td class="highlight-col">✅ Face + Hand Mesh + Gaze</td>
+            </tr>
+            <tr>
+              <td>Voice Anti-Spoofing (Deepfake)</td>
+              <td>❌ None</td>
+              <td>❌ None</td>
+              <td class="highlight-col">✅ Proprietary Signal AI</td>
+            </tr>
+            <tr>
+              <td>Candidate Career Growth Loop</td>
+              <td>❌ Rejection Email</td>
+              <td>❌ Generic Email</td>
+              <td class="highlight-col">✅ Personal AI Growth Agent</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- SLIDE 12: The Ask & Call to Action -->
+      <section class="slide">
+        <div class="slide-header">
+          <div class="slide-tag">🤝 Investment Round</div>
+          <div class="slide-title">Seed Raise & Strategic Milestones</div>
+          <div class="slide-subtitle">Join us in automating and protecting global tech hiring.</div>
+        </div>
+        <div class="grid-2">
+          <div class="card" style="background: radial-gradient(circle at bottom right, rgba(6, 182, 212, 0.2), transparent); border-color: var(--accent-cyan);">
+            <div class="card-title" style="font-size: 1.8rem; color: var(--accent-cyan);">Seed Raise Ask</div>
+            <div class="stat-number" style="font-size: 3.5rem;">$1,200,000</div>
+            <p class="card-text" style="font-size: 1.1rem; margin-top: 1rem;">
+              To accelerate AI speech model refinement, expand B2B sales operations, and integrate directly into Workday, Greenhouse & Lever.
+            </p>
+          </div>
+          <div class="card">
+            <div class="card-title">Capital Allocation</div>
+            <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem;">
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size: 0.9rem; margin-bottom: 4px;">
+                  <span>AI & Engineering R&D</span>
+                  <strong>50% ($600k)</strong>
+                </div>
+                <div style="height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                  <div style="width: 50%; height: 100%; background: var(--accent-purple);"></div>
+                </div>
+              </div>
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size: 0.9rem; margin-bottom: 4px;">
+                  <span>Go-To-Market & Enterprise Sales</span>
+                  <strong>30% ($360k)</strong>
+                </div>
+                <div style="height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                  <div style="width: 30%; height: 100%; background: var(--accent-blue);"></div>
+                </div>
+              </div>
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size: 0.9rem; margin-bottom: 4px;">
+                  <span>Infrastructure & Operations</span>
+                  <strong>20% ($240k)</strong>
+                </div>
+                <div style="height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                  <div style="width: 20%; height: 100%; background: var(--accent-emerald);"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Speaker Notes Drawer -->
+    <div class="speaker-notes-panel" id="speakerNotesPanel">
+      <div class="notes-header">🎙️ Presenter Script & Key Talking Points</div>
+      <div id="notesContent" style="font-size: 0.85rem; color: #cbd5e1; line-height: 1.5;"></div>
+    </div>
+
+    <!-- Controls Bar -->
+    <footer class="bottom-bar">
+      <div style="display: flex; gap: 10px;">
+        <button class="btn" id="prevBtn">← Previous <span class="key-hint">Left</span></button>
+        <button class="btn btn-primary" id="nextBtn">Next → <span class="key-hint">Right</span></button>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn" id="notesBtn">📝 Speaker Notes</button>
+        <button class="btn" id="fullscreenBtn">⛶ Fullscreen</button>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const speakerNotes = [
+      "Slide 1: Welcome investors. Today we present HireAI, the world's first autonomous conversational interviewing and multi-modal proctoring ecosystem.",
+      "Slide 2: Technical hiring is broken. Companies spend 42 days per hire, while remote interview fraud has surged by 68% with deepfake voices and cheat bots.",
+      "Slide 3: Our solution automates the complete hiring pipeline into 4 integrated steps: Smart ATS parsing, real-time voice interviewing, multi-modal proctoring, and post-interview candidate growth.",
+      "Slide 4: Feature 1 details our semantic ATS alignment engine and interactive resume chatbot, enabling recruiters to query resumes like a ChatGPT copilot.",
+      "Slide 5: Feature 2 highlights our sub-second WebSocket audio streaming platform. The AI interviewer scales technical question difficulty dynamically based on candidate performance.",
+      "Slide 6: Feature 3 is our core security moat. We combine client-side MediaPipe visual mesh tracking with proprietary voice frequency anti-spoofing to detect synthetic deepfake audio.",
+      "Slide 7: Feature 4 shows our enterprise HR leaderboard alongside our AI Growth Agent, which gives rejected candidates customized learning links instead of ghosting them.",
+      "Slide 8: Technical feasibility is proven. By running vision proctoring on the browser edge via Wasm, we eliminate costly GPU infrastructure costs while Django Channels scales low-latency WebSockets.",
+      "Slide 9: Our commercial viability targets a $32B TAM with B2B SaaS tiers ranging from $299 to $799/mo plus a $19/mo B2C candidate practice pass.",
+      "Slide 10: Unit economics boast an 84% gross margin, a 7.5x LTV/CAC ratio, and a projected $2.8M ARR by Year 2.",
+      "Slide 11: Compare us to legacy players like HireVue or Greenhouse: none of them offer real-time conversational voice, edge multi-modal proctoring, or voice anti-spoofing.",
+      "Slide 12: We are raising a $1.2M Seed Round to scale engineering and GTM enterprise sales. Thank you, and let's open for Q&A!"
+    ];
+
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    const dotContainer = document.getElementById('dotContainer');
+    const currentSlideNum = document.getElementById('currentSlideNum');
+    const totalSlideNum = document.getElementById('totalSlideNum');
+    const notesContent = document.getElementById('notesContent');
+    const speakerNotesPanel = document.getElementById('speakerNotesPanel');
+
+    totalSlideNum.textContent = totalSlides;
+
+    slides.forEach((_, idx) => {
+      const dot = document.createElement('div');
+      dot.classList.add('dot');
+      if (idx === 0) dot.classList.add('active');
+      dot.addEventListener('click', () => goToSlide(idx));
+      dotContainer.appendChild(dot);
+    });
+
+    const dots = document.querySelectorAll('.dot');
+
+    function updateSlide() {
+      slides.forEach((slide, idx) => {
+        slide.classList.toggle('active', idx === currentSlide);
+      });
+      dots.forEach((dot, idx) => {
+        dot.classList.toggle('active', idx === currentSlide);
+      });
+      currentSlideNum.textContent = currentSlide + 1;
+      notesContent.textContent = speakerNotes[currentSlide];
+    }
+
+    function goToSlide(index) {
+      currentSlide = index;
+      updateSlide();
+    }
+
+    document.getElementById('prevBtn').addEventListener('click', () => {
+      if (currentSlide > 0) {
+        currentSlide--;
+        updateSlide();
+      }
+    });
+
+    document.getElementById('nextBtn').addEventListener('click', () => {
+      if (currentSlide < totalSlides - 1) {
+        currentSlide++;
+        updateSlide();
+      }
+    });
+
+    document.getElementById('notesBtn').addEventListener('click', () => {
+      speakerNotesPanel.classList.toggle('open');
+    });
+
+    document.getElementById('fullscreenBtn').addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        if (currentSlide < totalSlides - 1) {
+          currentSlide++;
+          updateSlide();
+        }
+      } else if (e.key === 'ArrowLeft') {
+        if (currentSlide > 0) {
+          currentSlide--;
+          updateSlide();
+        }
+      }
+    });
+
+    notesContent.textContent = speakerNotes[0];
+  </script>
+</body>
+</html>

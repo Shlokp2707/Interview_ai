@@ -73,4 +73,3 @@ def _empty_speaking_scores() -> dict:
         "unique_words": 0, "ttr": 0.0, "avg_sent_len": 0.0,
         "vocab_level": "N/A", "fluency_score": 0.0, "top_fillers": [],
     }
-    
