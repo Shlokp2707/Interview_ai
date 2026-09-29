@@ -43,6 +43,8 @@ class JobPosting(models.Model):
             "nice_to_have":     self.nice_to_have,
             "experience":       self.experience,
             "responsibilities": self.responsibilities,
+            "max_questions":    self.max_questions,
+            "max_followups":    self.max_followups,
         }
 
 
@@ -192,6 +194,28 @@ class OTPVerification(models.Model):
 
     def __str__(self):
         return f"OTP for {self.identifier} (Expires: {self.expires_at})"
+
+
+class UserApiKey(models.Model):
+    """Stores encrypted user API keys for Bring Your Own Key (BYOK) providers including custom OpenAI-compatible endpoints."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="api_keys")
+    provider = models.CharField(max_length=50)  # groq, gemini, openai, anthropic, openrouter, deepseek, tavily, elevenlabs, custom, etc.
+    provider_name = models.CharField(max_length=100, blank=True, default="")
+    api_base_url = models.CharField(max_length=300, blank=True, default="")  # e.g. https://openrouter.ai/api/v1 or custom host
+    selected_model = models.CharField(max_length=100, blank=True, default="")
+    encrypted_key = models.TextField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("user", "provider")
+
+    def __str__(self):
+        name = self.provider_name or self.provider.capitalize()
+        return f"{self.user.username}'s {name} API Key"
+
+
 
 
 

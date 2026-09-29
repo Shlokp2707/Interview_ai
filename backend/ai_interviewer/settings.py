@@ -1,8 +1,17 @@
-from pathlib import Path
 import os
+from pathlib import Path
+
+# Prevent OpenBLAS/OpenMP memory allocation failures in multi-threaded environments on Windows
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv(override=True)
 except ImportError:
     pass
 
@@ -56,23 +65,27 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "ai_interviewer.wsgi.application"
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.sqlite3",
-#         "NAME": BASE_DIR / "db.sqlite3",
-#     }
-# }
-# PostgreSQL Database Configuration
-DATABASES = {
-    'default': {
-        'ENGINE': os.getenv("DB_ENGINE", "django.db.backends.postgresql"),
-        'NAME': os.getenv("DB_NAME", "interview_db"),
-        'USER': os.getenv("DB_USER", "postgres"),
-        'PASSWORD': os.getenv("DB_PASSWORD", "postgres"),
-        'HOST': os.getenv("DB_HOST", "127.0.0.1"),
-        'PORT': os.getenv("DB_PORT", "5432"),
+# DATABASES Configuration with SQLite fallback support
+USE_SQLITE = os.getenv("USE_SQLITE", "False").lower() in ("true", "1", "yes")
+
+if USE_SQLITE or not os.getenv("DB_ENGINE"):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': os.getenv("DB_ENGINE", "django.db.backends.sqlite3").strip("\"'").strip(),
+            'NAME': os.getenv("DB_NAME", "interview_db").strip("\"'").strip(),
+            'USER': os.getenv("DB_USER", "root").strip("\"'").strip(),
+            'PASSWORD': os.getenv("DB_PASSWORD", "").strip("\"'").strip(),
+            'HOST': os.getenv("DB_HOST", "127.0.0.1").strip("\"'").strip(),
+            'PORT': os.getenv("DB_PORT", "3306").strip("\"'").strip(),
+        }
+    }
 # Channels
 ASGI_APPLICATION = "ai_interviewer.asgi.application"
 
@@ -89,11 +102,11 @@ MEDIA_ROOT = BASE_DIR / "media"
 SESSION_ENGINE     = "django.contrib.sessions.backends.db"
 SESSION_COOKIE_AGE = 86400
 
-GROQ_API_KEY   = os.getenv("GROQ_API_KEY", "")
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GROQ_API_KEY   = os.getenv("GROQ_API_KEY", "").strip("\"'").strip()
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "").strip("\"'").strip()
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "").strip("\"'").strip()
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip("\"'").strip()
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "").strip("\"'").strip()
 
 EMAIL_BACKEND       = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST          = "smtp.gmail.com"

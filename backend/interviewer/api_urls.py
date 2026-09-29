@@ -46,4 +46,12 @@ urlpatterns = [
     path("interview/<int:application_id>/share-feedback/", api_views.api_share_growth_feedback, name="api_share_growth_feedback"),
     path("interview/<int:application_id>/growth-feedback/", api_views.api_candidate_growth_feedback, name="api_candidate_growth_feedback"),
     path("ats/auto-align/", api_views.api_ats_auto_align, name="api_ats_auto_align"),
+    path("ai/intent-router/", api_views.api_ai_intent_router, name="api_ai_intent_router"),
+
+    # Bring Your Own Key (BYOK) Settings
+    path("user-keys/", api_views.api_user_keys, name="api_user_keys"),
+    path("user-keys/validate/", api_views.api_user_key_validate, name="api_user_key_validate"),
+    path("user-keys/<str:provider>/", api_views.api_user_key_delete, name="api_user_key_delete"),
 ]
+
+

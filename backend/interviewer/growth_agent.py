@@ -34,9 +34,9 @@ def get_growth_llm():
             )
         except Exception:
             pass
-    api_key = getattr(settings, "GROQ_API_KEY", None)
+    api_key = getattr(settings, "GROQ_API_KEY", None) or os.getenv("GROQ_API_KEY")
     return ChatGroq(
-        model="qwen/qwen3.6-27b",
+        model="qwen/qwen3.8-27b",
         api_key=api_key,
         temperature=0.2
     )
@@ -81,20 +81,33 @@ def generate_growth_feedback_sync(application_id: int):
         def clean_llm_output(message):
             text = message.content if hasattr(message, "content") else str(message)
             import re
-            json_block = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+            text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+            json_block = re.search(r"```(?:json)?\s*(\{[\s\S]*\})\s*```", text)
             if json_block:
-                return json_block.group(1)
+                return json_block.group(1).strip()
             start = text.find("{")
             end   = text.rfind("}")
-            if start != -1 and end != -1:
-                return text[start:end + 1]
+            if start != -1 and end != -1 and end > start:
+                return text[start:end + 1].strip()
             return text
             
         cleaner = RunnableLambda(clean_llm_output)
         chain = llm | cleaner
         
         raw_text = chain.invoke(f"{prompt}\n\n{parser.get_format_instructions()}")
-        parsed = parser.parse(raw_text)
+        try:
+            parsed = parser.parse(raw_text)
+        except Exception as pe:
+            print(f"[GrowthAgent] Pydantic parse failed ({pe}), attempting manual JSON parse")
+            import re
+            clean_text = clean_llm_output(raw_text)
+            clean_text = re.sub(r",\s*([\]}])", r"\1", clean_text)
+            data = json.loads(clean_text)
+            parsed = GrowthFeedbackSchema(
+                weaknesses=[WeaknessItem(**w) for w in data.get("weaknesses", []) if isinstance(w, dict)],
+                strengths=[str(s) for s in data.get("strengths", [])],
+                study_resources=[StudyResourceItem(**r) for r in data.get("study_resources", []) if isinstance(r, dict)]
+            )
         
         # Determine whether it should be shared immediately (e.g. for mock practice)
         is_practice = (application.job.company == "Mock Practice Room")

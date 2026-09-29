@@ -16,13 +16,13 @@ from langchain_groq import ChatGroq
 def clean_llm_output(message):
     text = message.content if hasattr(message, "content") else str(message)
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-    json_block = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    json_block = re.search(r"```(?:json)?\s*(\{[\s\S]*\})\s*```", text)
     if json_block:
-        return json_block.group(1)
+        return json_block.group(1).strip()
     start = text.find("{")
     end   = text.rfind("}")
-    if start != -1 and end != -1:
-        return text[start:end + 1]
+    if start != -1 and end != -1 and end > start:
+        return text[start:end + 1].strip()
     return text
 
 cleaner = RunnableLambda(clean_llm_output)
@@ -62,7 +62,7 @@ def safe_chain_invoke(llm, parser, prompt, fallback_factory):
         print(f"[SafeInvoke-ATS] Primary LLM invocation failed: {e}")
         # Try fallback Groq models
         api_key = getattr(settings, "GROQ_API_KEY", None) or os.getenv("GROQ_API_KEY")
-        fallback_models = ["openai/gpt-oss-20b", "groq/compound", "openai/gpt-oss-120b"]
+        fallback_models = ["openai/gpt-oss-120b", "qwen/qwen3.6-27b", "openai/gpt-oss-20b", "groq/compound"]
         for fb_model in fallback_models:
             try:
                 print(f"[SafeInvoke-ATS] Attempting fallback model: {fb_model}")
@@ -90,6 +90,7 @@ def safe_chain_invoke(llm, parser, prompt, fallback_factory):
         try:
             import json
             clean_text = clean_llm_output(raw_text)
+            clean_text = re.sub(r",\s*([\]}])", r"\1", clean_text)
             data = json.loads(clean_text)
             pydantic_class = parser.pydantic_object
             
@@ -120,6 +121,9 @@ def safe_chain_invoke(llm, parser, prompt, fallback_factory):
                     val = sanitize_score(val)
                 elif field.annotation == bool:
                     val = str(val).lower() in ("true", "1", "yes", "t")
+                elif getattr(field.annotation, "__origin__", None) is list or field.annotation == list:
+                    if not isinstance(val, list):
+                        val = [str(val)] if val else []
                     
                 kwargs[name] = val
                 
@@ -141,16 +145,45 @@ def safe_chain_invoke(llm, parser, prompt, fallback_factory):
 # ── LLM ──────────────────────────────────────────────────────
 _ats_llm = None
 
-def get_ats_llm():
-    global _ats_llm
-    if _ats_llm is None:
-        api_key = getattr(settings, "GROQ_API_KEY", None) or os.getenv("GROQ_API_KEY")
-        _ats_llm = ChatGroq(
-            model="qwen/qwen3.6-27b",
-            api_key=api_key,
+def get_ats_llm(user=None):
+    from .key_manager import get_api_key_for_user
+    groq_key = get_api_key_for_user(user, "groq")
+    gemini_key = get_api_key_for_user(user, "gemini")
+    openai_key = get_api_key_for_user(user, "openai")
+
+    if groq_key:
+        return ChatGroq(
+            model="qwen/qwen3.8-27b",
+            api_key=groq_key,
             temperature=0.1
         )
-    return _ats_llm
+    elif gemini_key:
+        try:
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            return ChatGoogleGenerativeAI(
+                model="gemini-1.5-flash",
+                google_api_key=gemini_key,
+                temperature=0.1
+            )
+        except Exception:
+            pass
+    elif openai_key:
+        try:
+            from langchain_openai import ChatOpenAI
+            return ChatOpenAI(
+                model="gpt-4o-mini",
+                api_key=openai_key,
+                temperature=0.1
+            )
+        except Exception:
+            pass
+
+    api_key = getattr(settings, "GROQ_API_KEY", None) or os.getenv("GROQ_API_KEY")
+    return ChatGroq(
+        model="qwen/qwen3.8-27b",
+        api_key=api_key,
+        temperature=0.1
+    )
 
 
 # ── Schemas ───────────────────────────────────────────────────
@@ -206,10 +239,10 @@ class StudentAtsAuditSchema(BaseModel):
     summary: str = Field(description="A concise summary of the resume's ATS readiness and next steps for improvement")
 
 
-# ── State ─────────────────────────────────────────────────────
-class AtsState(TypedDict):
+class AtsState(TypedDict, total=False):
     desc: str
     resume: str
+    user: Optional[object]
     skill: list[str]
     qualification: list[str]
     soft_skill: list[str]
@@ -243,7 +276,7 @@ ATS_WEIGHTS = {
 
 # ── Node: summarise_desc ──────────────────────────────────────
 def summarise_desc(state: AtsState) -> AtsState:
-    model = get_ats_llm()
+    model = get_ats_llm(user=state.get("user"))
     parser1 = PydanticOutputParser(pydantic_object=get_desc_schema)
     chain1 = model | parser1
     job_desc = state["desc"]
@@ -303,7 +336,7 @@ def summarise_desc(state: AtsState) -> AtsState:
 
 # ── Node: matching ────────────────────────────────────────────
 def matching(state: AtsState) -> AtsState:
-    model = get_ats_llm()
+    model = get_ats_llm(user=state.get("user"))
     parser = PydanticOutputParser(pydantic_object=get_ats_schema)
     chain = model | parser
     mresume = state["resume"]
@@ -418,7 +451,7 @@ def calculate_final_ats_score(final_state: dict, weights: dict) -> float:
 
 
 # ── Main entry point ──────────────────────────────────────────
-def run_ats_scoring(resume_text: str, job_description: str, weights: Optional[dict] = None, threshold: Optional[float] = None) -> dict:
+def run_ats_scoring(resume_text: str, job_description: str, weights: Optional[dict] = None, threshold: Optional[float] = None, user: Optional[object] = None) -> dict:
     """
     Returns:
         {
@@ -427,7 +460,7 @@ def run_ats_scoring(resume_text: str, job_description: str, weights: Optional[di
             "passed": bool
         }
     """
-    initial_state = {"desc": job_description, "resume": resume_text}
+    initial_state = {"desc": job_description, "resume": resume_text, "user": user}
     final_state = ATS_GRAPH.invoke(initial_state)
 
     # Process custom weights
@@ -1283,6 +1316,188 @@ def run_profile_assistant_chat(user_instruction: str, current_profile: dict, lat
 
     result = safe_chain_invoke(model, parser, prompt, fallback_factory=lambda: fallback)
     return result.model_dump()
+
+
+class UniversalIntentSchema(BaseModel):
+    action_type: str = Field(description="Action type: NAVIGATE, EDIT_PROFILE, EDIT_JOB_FORM, AUTO_FILL_FORM, EDIT_RESUME, FILTER_JOBS, RESET_JOBS, TOGGLE_THEME, ASK_MISSING_DATA, MULTI_TASK, OPEN_MODAL, or GENERAL_QA")
+    target_route: Optional[str] = Field(None, description="Target frontend route if navigation is needed: /profile, /jobs, /ats-scorer, /practice, /hr, /apply/<id>, etc.")
+    summary: str = Field(description="Short human readable summary of action (e.g. 'Auto-fill Mock Interview Form', 'Ask for Missing Skills', 'Switch Theme').")
+    message: str = Field(description="Natural, helpful conversational AI response to display to the user.")
+    missing_field: Optional[str] = Field(None, description="Name of missing profile/data field if user needs to be prompted (e.g. 'skills', 'target_role', 'bio', 'phone').")
+    requires_confirmation: bool = Field(False, description="True if action is sensitive like removing skills or deleting data.")
+    confirmation_message: Optional[str] = Field(None, description="Confirmation message if requires_confirmation is true.")
+    logs: List[str] = Field(default_factory=list, description="Step-by-step visual logs of AI execution.")
+    payload: Optional[dict] = Field(default_factory=dict, description="Structured payload data for section edits, form auto-fills, or filters.")
+    sub_actions: Optional[List[dict]] = Field(default_factory=list, description="List of sub-actions to execute sequentially if user specified multiple tasks.")
+
+
+def python_fallback_intent_router(user_query: str, user_role: str = "candidate", current_path: str = "/", context_data: dict = None) -> UniversalIntentSchema:
+    text = user_query.strip().lower()
+    profile = (context_data or {}).get("profile", {})
+    cand_name = profile.get("full_name") or "Candidate"
+    cand_email = profile.get("user", {}).get("email") if isinstance(profile.get("user"), dict) else (profile.get("email") or "candidate@example.com")
+
+    if any(k in text for k in ['mock', 'practice', 'interview', 'setup backend interview', 'setup interview', 'start interview', 'send pdf', 'launch interview']):
+        is_backend = any(k in text for k in ['backend', 'django', 'node', 'python', 'sql', 'api', 'server'])
+        is_product = any(k in text for k in ['product', 'design', 'ux', 'ui'])
+        role = 'Backend Developer' if is_backend else ('Product Manager' if is_product else 'Frontend Developer')
+
+        topics = 'Backend Architecture, SQL, APIs, Security' if is_backend else ('Product Design & UX Strategy' if is_product else 'Frontend Development & React')
+        if 'django' in text:
+            topics = 'Django, Python, REST APIs, PostgreSQL'
+
+        auto_launch = any(k in text for k in ['launch', 'start', 'confirm'])
+
+        return UniversalIntentSchema(
+            action_type="AUTO_FILL_FORM",
+            target_route="/practice",
+            summary=f"Auto-fill & Setup {role} Mock Interview",
+            message=f"I have prepared your {role} practice interview setup focusing on {topics} and attached your candidate PDF resume.",
+            requires_confirmation=True,
+            confirmation_message=f"I've auto-filled the mock interview setup form for {role} focusing on {topics} using your profile data and attached your PDF resume. Confirm to generate and launch the interview in the practice room!",
+            payload={
+                "form_type": "practice_mock",
+                "form_data": {
+                    "name": cand_name,
+                    "email": cand_email,
+                    "targetRole": role,
+                    "focusTopics": topics,
+                    "description": f"Custom practice mock interview for {role} focusing on {topics}.",
+                    "attachPdf": True,
+                    "autoSubmit": auto_launch
+                }
+            },
+            logs=["✓ Identified intent: Auto-fill Mock Practice Interview & Attach PDF Resume", "✓ Pre-filled candidate PDF resume"]
+        )
+
+    if any(k in text for k in ['theme', 'dark', 'light']):
+        target_theme = 'light' if 'light' in text else ('dark' if 'dark' in text else 'toggle')
+        return UniversalIntentSchema(
+            action_type="TOGGLE_THEME",
+            summary=f"Switch to {target_theme} theme",
+            message=f"Switching theme to {target_theme} mode!",
+            payload={"theme": target_theme},
+            logs=["✓ Identified intent: Change UI Theme"]
+        )
+
+    if any(k in text for k in ['reset job', 'clear job', 'show all jobs', 'clear filter']):
+        return UniversalIntentSchema(
+            action_type="RESET_JOBS",
+            target_route="/jobs",
+            summary="Reset Job Listings & Clear Filters",
+            message="Resetting job search filters and loading all active vacancies!",
+            payload={"reset": True},
+            logs=["✓ Identified intent: Reset Jobs"]
+        )
+
+    if any(k in text for k in ['ats', 'score', 'resume score']):
+        return UniversalIntentSchema(
+            action_type="NAVIGATE",
+            target_route="/ats-scorer",
+            summary="Open ATS Scorer",
+            message="Opening ATS Resume Scorer!",
+            logs=["✓ Identified intent: ATS Resume Analyzer", "✓ Target route: /ats-scorer"]
+        )
+
+    if any(k in text for k in ['profile', 'bio', 'skill']):
+        return UniversalIntentSchema(
+            action_type="NAVIGATE",
+            target_route="/profile",
+            summary="Open Profile Page",
+            message="Opening your profile page!",
+            logs=["✓ Identified intent: Navigate to Profile", "✓ Target route: /profile"]
+        )
+
+    return UniversalIntentSchema(
+        action_type="GENERAL_QA",
+        summary="AI Platform Query",
+        message=f"Subh AI processed your request: '{user_query}'",
+        logs=["✓ Semantic parser initialized", "✓ Processed natural language query"]
+    )
+
+
+def run_universal_intent_router(user_query: str, user_role: str = "candidate", current_path: str = "/", context_data: dict = None) -> dict:
+    import json
+    if context_data is None:
+        context_data = {}
+
+    model = get_ats_llm()
+    parser = PydanticOutputParser(pydantic_object=UniversalIntentSchema)
+
+    prompt = f"""
+    You are Subh AI ⚡, the Universal AI Platform Controller & Assistant for HireAI.
+    You understand natural language commands, route users to pages, edit platform details/sections, auto-fill forms (Mock Interview, Job Application, HR posting, Profile), change themes, reset jobs, and ask proactive follow-up questions for missing user data.
+
+    USER ENVIRONMENT & CONTEXT:
+    - User Role: {user_role}
+    - Current Active Route: {current_path}
+    - Context Data: {json.dumps(context_data, indent=2)}
+
+    USER QUERY:
+    -------------------
+    {user_query}
+    -------------------
+
+    PLATFORM CAPABILITIES & ROUTING MAP:
+    1. AUTO_FILL_FORM (Auto-fill mock interview setup, job application form, or recruiter job post):
+       - Target routes: `/practice` for mock interview setup, `/apply/<id>` for job application, `/hr` for recruiter job posting.
+       - Set `action_type`: `AUTO_FILL_FORM`, `target_route`: `/practice`.
+       - For Mock Practice Form (`form_type`: "practice_mock"):
+         Set `payload`: {{"form_type": "practice_mock", "form_data": {{"name": "Candidate Full Name", "email": "candidate@example.com", "targetRole": "Backend Developer", "focusTopics": "Django, Python, REST APIs, PostgreSQL", "description": "Custom practice mock interview setup", "attachPdf": true, "autoSubmit": false}}}}
+       - Triggers for: "fill mock interview", "make an interview for mock practice", "setup practice for backend and skill django", "auto fill application", "fill out form", "send pdf to practice room", "launch practice room with pdf resume", "setup backend interview & send pdf resume".
+       - FOR MOCK PRACTICE FORM: Parse the requested target role (e.g., 'Backend Developer', 'Frontend Developer', 'Fullstack Developer', etc.) into `targetRole` and any specified skills/focus areas (e.g., 'Django', 'React', 'Python', 'SQL') into `focusTopics`. Use candidate profile data for name and email. Always set `attachPdf` to `true`.
+       - CONFIRMATION REQUIREMENT: For mock practice form creation & launch, set `requires_confirmation` to `true` and populate `confirmation_message` asking the candidate to confirm before starting the room (e.g., "I've auto-filled the mock interview setup form for Backend Developer using your profile data and attached your PDF resume. Please confirm to generate and launch the interview in the practice room!").
+    2. ASK_MISSING_DATA (Ask user for missing profile/resume data):
+       - If user asks to auto-fill a form, update resume, or update profile, but essential data (e.g. skills, bio, target role, phone) is missing in Context Data and NOT provided in user query:
+       - Set `action_type`: `ASK_MISSING_DATA`, `missing_field`: name of missing field, `message`: friendly question asking user for the missing data.
+    3. TOGGLE_THEME (Switch dark or light theme):
+       - If user asks to switch to light mode / light theme / day mode, set `payload`: {{"theme": "light"}}.
+       - If user asks to switch to dark mode / dark theme / night mode, set `payload`: {{"theme": "dark"}}.
+       - If user asks to toggle theme or change theme without specifying, set `payload`: {{"theme": "toggle"}}.
+       - Triggers for: "switch to light mode", "enable light theme", "switch to dark mode", "dark theme", "toggle theme", "change theme".
+
+    4. RESET_JOBS (Clear job search filters & show all jobs):
+       - Set `action_type`: `RESET_JOBS`, `target_route`: `/jobs`, `payload`: {{"reset": true}}.
+    5. NAVIGATE (Route to page):
+       - User Profile: `/profile`, Job Explorer: `/jobs`, ATS Scorer: `/ats-scorer`, Practice Arena: `/practice`, HR Dashboard: `/hr`.
+    6. EDIT_PROFILE (Update candidate/user profile section fields):
+       - Extract fields in payload: `full_name`, `phone`, `location`, `bio`, `college_name`, `degree`, `graduation_year`, `skills` (list of strings), `interests` (list of strings), `designation`.
+    7. EDIT_JOB_FORM (Draft or refine recruiter job post details on HR dashboard):
+       - Extract fields in payload: `job_description`, `required_skills` (string), `custom_questions` (list of strings).
+    8. EDIT_RESUME (Edit resume PDF / ATS fixes):
+       - Set `action_type`: `EDIT_RESUME`, `payload`: {{"user_instruction": user_query}}.
+    9. FILTER_JOBS (Filter job feed):
+       - Set `action_type`: `FILTER_JOBS`, `target_route`: `/jobs`, `payload`: {{"filterText": extracted search query}}.
+    10. MULTI_TASK (Sequence multiple operations):
+       - If user asks for multiple separate tasks in one query (e.g. "Switch to dark mode and add Python to skills and open practice"):
+       - Include sub-actions in `sub_actions`.
+
+    CRITICAL RULES:
+    1. Analyze the true semantic intent of the query.
+    2. If required profile data is missing to complete a requested task, use `ASK_MISSING_DATA`.
+    3. If user requests auto-filling mock interview or application forms, set action_type to `AUTO_FILL_FORM` with target_route `/practice` or `/apply/<id>`.
+    4. Always return clean, valid JSON strictly adhering to the schema.
+
+    {parser.get_format_instructions()}
+    """
+
+    result = safe_chain_invoke(
+        model, 
+        parser, 
+        prompt, 
+        fallback_factory=lambda: python_fallback_intent_router(user_query, user_role, current_path, context_data)
+    )
+
+    # Secondary check: If LLM returned GENERAL_QA but python fallback recognizes explicit intent, prefer python intent
+    if getattr(result, "action_type", None) == "GENERAL_QA":
+        fb_intent = python_fallback_intent_router(user_query, user_role, current_path, context_data)
+        if fb_intent.action_type != "GENERAL_QA":
+            result = fb_intent
+
+    return result.model_dump()
+
+
+
 
 
 

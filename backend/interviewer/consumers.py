@@ -25,28 +25,39 @@ def pcm_to_wav_bytes(pcm_bytes: bytes, sample_rate: int = 16000) -> bytes:
     return buf.getvalue()
 
 
+# Shared high-performance HTTP client with persistent connection pooling
+HTTPX_CLIENT = httpx.AsyncClient(
+    timeout=httpx.Timeout(20.0, connect=5.0),
+    limits=httpx.Limits(max_keepalive_connections=20, max_connections=50)
+)
+
+
 async def transcribe_with_groq(wav_bytes: bytes) -> str:
-    """Send WAV audio to Groq Whisper API, return transcript text."""
+    """Send WAV audio to Groq Whisper API using persistent connection pool."""
     if len(wav_bytes) < 1000:
         return ""
-    key_preview = f"{GROQ_API_KEY[:8]}...{GROQ_API_KEY[-4:]}" if len(GROQ_API_KEY) > 12 else "INVALID/EMPTY"
-    print(f"[debug] transcribe_with_groq called with key: {key_preview} (length={len(GROQ_API_KEY)})")
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(
+    
+    try:
+        response = await HTTPX_CLIENT.post(
             GROQ_WHISPER_URL,
             headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
             files={"file": ("audio.wav", wav_bytes, "audio/wav")},
             data={
-                "model":    "whisper-large-v3-turbo",
+                "model": "whisper-large-v3-turbo",
                 "language": "en",
-                "prompt":   "Technical AI interview context. Candidate names, terms: Shlok, Groq, LangGraph, Python, Django, React, JavaScript, HTML, CSS, SQL, SQLite.",
+                "temperature": "0.0",  # Deterministic, ultra-accurate, zero hallucinations
+                "response_format": "json",
+                "prompt": "Technical AI interview context. Candidate names, terms: Shlok, Groq, LangGraph, Python, Django, React, JavaScript, HTML, CSS, SQL, SQLite, REST API, Database.",
             },
         )
         if response.status_code == 200:
             return response.json().get("text", "").strip()
         else:
-            print(f"Groq Whisper error {response.status_code}: {response.text}")
+            print(f"Groq Whisper API returned {response.status_code}: {response.text}")
             return ""
+    except Exception as e:
+        print(f"Groq Whisper transcription error: {e}")
+        return ""
 
 
 @database_sync_to_async
@@ -97,21 +108,22 @@ def save_voice_spoof_result(application_id, result):
 class TranscriptConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
-        user = self.scope.get("user")
-        if not user or not user.is_authenticated:
-            await self.close(code=4003)
-            return
-
         self.audio_buffer    = bytearray()
         self.full_transcript = ""
         self.last_transcribed_len = 0
         self.last_spoof_result = None
         self.is_recording    = False
+
+        user = self.scope.get("user")
+        if not user or not user.is_authenticated:
+            await self.close(code=4003)
+            return
+
         await self.accept()
         await self.send(json.dumps({"type": "ready"}))
 
     async def disconnect(self, close_code):
-        if self.audio_buffer:
+        if getattr(self, "audio_buffer", None):
             try:
                 await self.flush_buffer(final=True)
             except Exception as e:
@@ -127,7 +139,10 @@ class TranscriptConsumer(AsyncWebsocketConsumer):
             # Accumulate raw PCM audio
             self.audio_buffer.extend(bytes_data)
 
-            pass
+            # Trigger live interim transcription every 1.5s of new audio (~48000 bytes)
+            if len(self.audio_buffer) - self.last_transcribed_len >= 48000:
+                self.last_transcribed_len = len(self.audio_buffer)
+                asyncio.create_task(self.flush_buffer(final=False))
 
         elif text_data:
             try:

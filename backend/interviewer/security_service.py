@@ -1,5 +1,18 @@
 import os
 import sys
+import threading
+import gc
+
+# Configure threading limits for OpenBLAS / MKL / OpenMP BEFORE NumPy or TensorFlow/OpenCV loads
+# This prevents OpenBLAS memory allocation failures on multi-threaded servers (e.g. Daphne/ASGI)
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 # Configure stdout and stderr to handle UTF-8 to prevent DeepFace emoji log encoding crashes on Windows
 if hasattr(sys.stdout, "reconfigure"):
@@ -13,9 +26,6 @@ if hasattr(sys.stderr, "reconfigure"):
     except Exception:
         pass
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-
 import base64
 import tempfile
 import cv2
@@ -25,6 +35,8 @@ from django.conf import settings
 # Lazy loading helpers for heavy optional libraries
 _deepface_tried = False
 _DeepFace = None
+_preload_lock = threading.Lock()
+_models_preloaded = False
 
 def _get_deepface():
     global _deepface_tried, _DeepFace
@@ -82,37 +94,50 @@ def _get_mediapipe_detector():
 def preload_heavy_libraries():
     """
     Preloads DeepFace and MediaPipe FaceLandmarker models into memory to prevent lags during live proctoring.
+    Thread-safe and idempotent to prevent duplicate simultaneous model initialization across workers.
     """
-    print("[Preload] Starting preloading of DeepFace and MediaPipe FaceLandmarker...")
-    df = _get_deepface()
-    if df is not None:
-        print("[Preload] DeepFace imported successfully.")
-        try:
-            # Warm up Facenet and Emotion models by building them to prevent first-frame lag
-            print("[Preload] Warming up Facenet and Emotion models...")
-            df.build_model("Facenet")
-            df.build_model("Emotion", task="facial_attribute")
-            print("[Preload] Facenet and Emotion models warmed up successfully.")
-        except Exception as e:
-            print(f"[Preload] Warning: Could not warm up DeepFace models: {e}")
-    else:
-        print("[Preload] DeepFace is not installed or failed to import.")
-        
-    mp_det = _get_mediapipe_detector()
-    mp = _get_mediapipe()
-    if mp_det is not None and mp is not None:
-        print("[Preload] MediaPipe FaceLandmarker initialized successfully. Warming up model...")
-        try:
-            # Run a dummy frame through the model to compile shaders/buffers and avoid first-frame lag
-            dummy_img = np.zeros((100, 100, 3), dtype=np.uint8)
-            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=dummy_img)
-            mp_det.detect(mp_image)
-            print("[Preload] MediaPipe FaceLandmarker model warmed up successfully.")
-        except Exception as e:
-            print(f"[Preload] Warning: Could not warm up MediaPipe FaceLandmarker: {e}")
-    else:
-        print("[Preload] MediaPipe FaceLandmarker failed to initialize.")
-    print("[Preload] Preloading finished.")
+    global _models_preloaded
+    if _models_preloaded:
+        print("[Preload] Models already loaded, skipping duplicate preload.")
+        return
+
+    with _preload_lock:
+        if _models_preloaded:
+            return
+
+        print("[Preload] Starting preloading of DeepFace and MediaPipe FaceLandmarker...")
+        df = _get_deepface()
+        if df is not None:
+            print("[Preload] DeepFace imported successfully.")
+            try:
+                # Warm up Facenet and Emotion models by building them to prevent first-frame lag
+                print("[Preload] Warming up Facenet and Emotion models...")
+                df.build_model("Facenet")
+                df.build_model("Emotion", task="facial_attribute")
+                print("[Preload] Facenet and Emotion models warmed up successfully.")
+            except Exception as e:
+                print(f"[Preload] Warning: Could not warm up DeepFace models: {e}")
+        else:
+            print("[Preload] DeepFace is not installed or failed to import.")
+            
+        mp_det = _get_mediapipe_detector()
+        mp = _get_mediapipe()
+        if mp_det is not None and mp is not None:
+            print("[Preload] MediaPipe FaceLandmarker initialized successfully. Warming up model...")
+            try:
+                # Run a dummy frame through the model to compile shaders/buffers and avoid first-frame lag
+                dummy_img = np.zeros((100, 100, 3), dtype=np.uint8)
+                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=dummy_img)
+                mp_det.detect(mp_image)
+                print("[Preload] MediaPipe FaceLandmarker model warmed up successfully.")
+            except Exception as e:
+                print(f"[Preload] Warning: Could not warm up MediaPipe FaceLandmarker: {e}")
+        else:
+            print("[Preload] MediaPipe FaceLandmarker failed to initialize.")
+
+        _models_preloaded = True
+        gc.collect()
+        print("[Preload] Preloading finished successfully.")
 
 def _load_cascade(filename):
     # Try absolute path first (default)

@@ -4,10 +4,33 @@ from .models import JobPosting, Application, ResumeAnalysis, UserProfile
 
 class UserSerializer(serializers.ModelSerializer):
     is_recruiter = serializers.BooleanField(source='is_staff', read_only=True)
+    full_name = serializers.SerializerMethodField()
+    profile_image = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'is_recruiter']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_recruiter', 'role', 'full_name', 'profile_image']
+
+    def get_full_name(self, obj):
+        try:
+            if hasattr(obj, 'profile') and obj.profile.full_name:
+                return obj.profile.full_name
+        except Exception:
+            pass
+        name = f"{obj.first_name} {obj.last_name}".strip()
+        return name if name else obj.username
+
+    def get_profile_image(self, obj):
+        try:
+            if hasattr(obj, 'profile') and obj.profile.profile_image:
+                return obj.profile.profile_image
+        except Exception:
+            pass
+        return None
+
+    def get_role(self, obj):
+        return "recruiter" if obj.is_staff else "candidate"
 
 
 class JobPostingSerializer(serializers.ModelSerializer):
@@ -95,3 +118,19 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'company_name', 'designation', 'company_website', 'hiring_focus',
             'profile_image', 'updated_at'
         ]
+
+
+class UserApiKeySerializer(serializers.ModelSerializer):
+    masked_key = serializers.SerializerMethodField()
+
+    class Meta:
+        from .models import UserApiKey
+        model = UserApiKey
+        fields = ['id', 'provider', 'provider_name', 'api_base_url', 'selected_model', 'masked_key', 'is_active', 'updated_at']
+
+    def get_masked_key(self, obj):
+        from .key_manager import decrypt_key, mask_key
+        raw_key = decrypt_key(obj.encrypted_key)
+        return mask_key(raw_key)
+
+
